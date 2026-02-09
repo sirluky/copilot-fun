@@ -30,7 +30,7 @@ Run directly without installation:
 npx copilot-fun
 ```
 
-> **Note**: This requires the package to be published to npm. Until then, use one of the other installation methods below.
+> **Note**: Requires the package to be available on npm. Use alternative installation methods if not yet published.
 
 Pass Copilot CLI arguments:
 
