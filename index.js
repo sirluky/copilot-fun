@@ -306,7 +306,7 @@ function launchGame(gameId) {
   const gameFile = path.join(WASM_DIR, `${gameId}.js`);
   const cols = getCols();
   const rows = getRows() - 1;
-  resetScrollRegion();
+  setScrollRegion();
   process.stdout.write(CLEAR);
   createGameVTerm();
   const gameEnv = { ...process.env, TERM: 'xterm-256color', LINES: String(rows), COLS: String(cols) };
@@ -330,7 +330,7 @@ function pauseGame() { activeScreen = 'fun'; drawFunScreen(); }
 function resumeGame() {
   if (!gameProcess) return false;
   activeScreen = 'game';
-  resetScrollRegion();
+  setScrollRegion();
   process.stdout.write(serializeVTerm(gameVterm));
   drawStatusBar();
   return true;
@@ -424,7 +424,7 @@ process.stdout.on('resize', () => {
   if (gameVterm) gameVterm.resize(cols, rows);
   if (activeScreen === 'copilot') { setScrollRegion(); drawStatusBar(); }
   else if (activeScreen === 'fun') drawFunScreen();
-  else drawStatusBar();
+  else if (activeScreen === 'game') { setScrollRegion(); process.stdout.write(serializeVTerm(gameVterm)); drawStatusBar(); }
 });
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────

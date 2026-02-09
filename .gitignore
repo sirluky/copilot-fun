@@ -1,3 +1,5 @@
 node_modules/
 dist/
 build/
+.copilot-fun-status
+.github/hooks/copilot-fun.json
