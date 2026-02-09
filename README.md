@@ -16,22 +16,36 @@ Press **Ctrl-G** to toggle between Copilot and a game menu with 10 WASM-compiled
 
 ## Installation
 
-### Option 1: npm/npx (Recommended)
+### Prerequisites
 
-Once published to npm, you can use npx to run it directly:
+- **Node.js** 18+ (tested with v23.4.0)
+- **GitHub Copilot CLI** installed and authenticated (`copilot` command available)
+- A terminal emulator supporting ANSI escape codes
+
+### Option 1: npx (Quickest - No Installation)
+
+Run directly without installation (once published to npm):
 
 ```bash
 npx copilot-fun
 ```
 
-Or install globally:
+Pass Copilot CLI arguments:
+
+```bash
+npx copilot-fun --model claude-sonnet-4
+```
+
+### Option 2: npm Global Install (Recommended)
+
+Install globally for easier access:
 
 ```bash
 npm install -g copilot-fun
 copilot-cli
 ```
 
-### Option 2: curl (One-line installer)
+### Option 3: curl (One-line installer)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sirluky/copilot-fun/main/install.sh | bash
@@ -48,7 +62,7 @@ To uninstall:
 rm -rf ~/.copilot-fun ~/.local/bin/copilot-cli
 ```
 
-### Option 3: Manual Installation
+### Option 4: Manual Installation (For Development)
 
 ```bash
 # Clone the repository
@@ -63,7 +77,7 @@ npm link
 copilot-cli
 ```
 
-### Option 4: Bun
+### Option 5: Bun
 
 ```bash
 # Install with Bun
@@ -81,12 +95,6 @@ Pass any Copilot CLI arguments through:
 ```bash
 copilot-cli --model claude-sonnet-4
 ```
-
-### Prerequisites
-
-- **Node.js** 18+ (tested with v23.4.0)
-- **GitHub Copilot CLI** installed and authenticated (`copilot` command available)
-- A terminal emulator supporting ANSI escape codes
 
 ## Controls
 
