@@ -15,6 +15,8 @@ This guide explains how to publish copilot-fun to npm.
    npm version minor  # for new features
    npm version major  # for breaking changes
    ```
+   
+   Note: `npm version` automatically creates a git tag.
 
 2. **Test the package** locally:
    ```bash
@@ -26,9 +28,9 @@ This guide explains how to publish copilot-fun to npm.
    npm publish
    ```
 
-4. **Create a git tag**:
+4. **Push the tag** created by `npm version`:
    ```bash
-   git push --tags
+   git push --follow-tags
    ```
 
 ## Post-Publishing
