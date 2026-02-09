@@ -14,11 +14,45 @@ Press **Ctrl-G** to toggle between Copilot and a game menu with 10 WASM-compiled
 - **10 turn-based WASM games** — compiled from [nbsdgames](https://github.com/abakh/nbsdgames) using Emscripten, runs on any platform with Node.js
 - **Cross-platform** — no tmux, no native binaries, just Node.js
 
-## Quick Start
+## Installation
+
+### Option 1: npm/npx (Recommended)
+
+Once published to npm, you can use npx to run it directly:
 
 ```bash
-# Clone and install
-git clone https://github.com/user/copilot-fun.git
+npx copilot-fun
+```
+
+Or install globally:
+
+```bash
+npm install -g copilot-fun
+copilot-cli
+```
+
+### Option 2: curl (One-line installer)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sirluky/copilot-fun/main/install.sh | bash
+```
+
+The installer will:
+- Clone the repository to `~/.copilot-fun`
+- Install dependencies
+- Create a symlink in `~/.local/bin/copilot-cli`
+
+To uninstall:
+
+```bash
+rm -rf ~/.copilot-fun ~/.local/bin/copilot-cli
+```
+
+### Option 3: Manual Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/sirluky/copilot-fun.git
 cd copilot-fun
 npm install
 
@@ -28,6 +62,19 @@ npm link
 # Run
 copilot-cli
 ```
+
+### Option 4: Bun
+
+```bash
+# Install with Bun
+bun install
+bun link
+
+# Run
+copilot-cli
+```
+
+## Usage
 
 Pass any Copilot CLI arguments through:
 
