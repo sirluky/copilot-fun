@@ -23,7 +23,7 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 # Check if Node.js is installed
-if ! command -v node &> /dev/null; then
+if ! command -v node > /dev/null 2>&1; then
     echo -e "${RED}✗ Node.js is not installed${NC}"
     echo -e "${YELLOW}  Please install Node.js 18+ from https://nodejs.org${NC}"
     exit 1
@@ -39,14 +39,14 @@ fi
 echo -e "${GREEN}✓ Node.js $(node -v) detected${NC}"
 
 # Check if npm is installed
-if ! command -v npm &> /dev/null; then
+if ! command -v npm > /dev/null 2>&1; then
     echo -e "${RED}✗ npm is not installed${NC}"
     exit 1
 fi
 echo -e "${GREEN}✓ npm $(npm -v) detected${NC}"
 
 # Check if git is installed
-if ! command -v git &> /dev/null; then
+if ! command -v git > /dev/null 2>&1; then
     echo -e "${RED}✗ git is not installed${NC}"
     echo -e "${YELLOW}  Please install git from your package manager${NC}"
     exit 1
@@ -54,7 +54,7 @@ fi
 echo -e "${GREEN}✓ git detected${NC}"
 
 # Check if GitHub Copilot CLI is installed
-if ! command -v copilot &> /dev/null; then
+if ! command -v copilot > /dev/null 2>&1; then
     echo -e "${YELLOW}⚠ GitHub Copilot CLI not detected${NC}"
     echo -e "${YELLOW}  Install it from: https://github.com/github/copilot-cli${NC}"
     echo -e "${YELLOW}  Installation will continue, but copilot-cli won't work without it${NC}"
