@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "hooks": {
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "echo \"working\" > \"/home/lukas/projects/fun/copilot-fun/.copilot-fun-status\"",
+        "timeoutSec": 5
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "echo \"working\" > \"/home/lukas/projects/fun/copilot-fun/.copilot-fun-status\"",
+        "timeoutSec": 5
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "echo \"waiting\" > \"/home/lukas/projects/fun/copilot-fun/.copilot-fun-status\"",
+        "timeoutSec": 5
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "echo \"idle\" > \"/home/lukas/projects/fun/copilot-fun/.copilot-fun-status\"",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

@@ -20,7 +20,19 @@ And how did I build it? **Completely coded using Copilot CLI** with a combinatio
 
 We have multiple options for turn-based games: Tic-Tac-Toe, Go, Chess, Pexeso (let's see what you remember after giving your AGI the next prompt 😄).
 
-The concept is simple: wrap Copilot CLI in a TUI that lets you **toggle** between the Copilot session and a fun screen using `Ctrl-G`.
+I found [nbsdgames](https://github.com/abakh/nbsdgames) — a collection of 23 terminal games written in C using ncurses. Perfect for our use case. But we wanted cross-platform compatibility without requiring users to compile C code...
+
+### The WASM Twist
+
+So I compiled all 20 games to **WebAssembly** using Emscripten. That means: no native binaries, no C compiler needed on the user's machine. Just `node` and you're playing Minesweeper while your AI refactors your codebase.
+
+The hardest part? **ncurses doesn't exist in WASM.** I had to write a complete ncurses shim (~360 lines) that maps all curses functions to ANSI escape codes:
+- `initscr()` → switch to alt screen buffer
+- `mvaddch()` / `mvprintw()` → cursor positioning + character output
+- `getch()` → async stdin read via Emscripten's ASYNCIFY
+- Colors, attributes, box-drawing characters — all mapped to ANSI equivalents
+
+The concept is simple: wrap Copilot CLI in a TUI that lets you **toggle** between the Copilot session and a game menu using `Ctrl-G`.
 
 ## How Does It Work?
 
@@ -88,8 +100,15 @@ copilot-cli --model claude-sonnet-4
 ```
 
 Once running:
-- **`Ctrl-G`** — Toggle between Copilot and Fun Mode
-- **`Ctrl-C`** — Forward to Copilot (or quit from Fun screen)
+- **`Ctrl-G`** — Toggle between Copilot and the Game Menu
+- **`↑/↓` or `j/k`** — Navigate the game list
+- **`Enter`** — Launch the selected game
+- **`q`** — Return to Copilot from menu
+- **`Ctrl-C`** — Forward to active process
+
+### Available Games (20 WASM-compiled from nbsdgames)
+
+Fifteen, Mines, Sudoku, Reversi, Checkers, Jewels, Pipes, SOS, Battleship, Memoblocks, Snake Duel, Miketron, Red Square, Muncher, Fisher, Rabbit Hole, Darrt, S-Jump, Tug of War, Revenge
 
 ## Alternatives Considered
 
