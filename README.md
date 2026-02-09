@@ -24,11 +24,13 @@ Press **Ctrl-G** to toggle between Copilot and a game menu with 10 WASM-compiled
 
 ### Option 1: npx (Quickest - No Installation)
 
-Run directly without installation (once published to npm):
+Run directly without installation:
 
 ```bash
 npx copilot-fun
 ```
+
+> **Note**: This requires the package to be published to npm. Until then, use one of the other installation methods below.
 
 Pass Copilot CLI arguments:
 
