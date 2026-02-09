@@ -1,5 +1,6 @@
 # Development files
 .github/hooks/
+!.github/agents/
 .copilot-fun-status
 TODO
 Dockerfile
