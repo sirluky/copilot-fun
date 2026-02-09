@@ -30,8 +30,8 @@ if ! command -v node > /dev/null 2>&1; then
 fi
 
 # Check Node.js version  
-NODE_VERSION=$(node -v | sed 's/v//;s/[^0-9].*//')
-if [ "$NODE_VERSION" -lt 18 ] 2>/dev/null || [ -z "$NODE_VERSION" ]; then
+NODE_VERSION=$(node -v | sed 's/v\([0-9]*\).*/\1/')
+if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" -lt 18 ] 2>/dev/null; then
     echo -e "${RED}✗ Node.js version 18+ is required (found: $(node -v))${NC}"
     echo -e "${YELLOW}  Please upgrade Node.js from https://nodejs.org${NC}"
     exit 1
