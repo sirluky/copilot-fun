@@ -190,7 +190,7 @@ copilot-fun/
 - [Emscripten](https://emscripten.org/) — C-to-WASM compiler
 - [nbsdgames](https://github.com/abakh/nbsdgames) — original C terminal games (CC0)
 
-**Built entirely using Copilot CLI** — an AI building its own entertainment system.
+**Built entirely using Copilot CLI & Me** — an AI building its own entertainment system.
 
 ## License
 
