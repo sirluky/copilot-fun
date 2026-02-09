@@ -15,46 +15,66 @@ const HOOKS_FILE = path.join(HOOKS_DIR, 'copilot-fun.json');
 
 // ── Available games (turn-based only) ───────────────────────────────────────
 const GAMES = [
-  { id: 'fifteen', name: 'Fifteen Puzzle', desc: 'Slide numbered tiles into order',
+  {
+    id: 'fifteen', name: 'Fifteen Puzzle', desc: 'Slide numbered tiles into order',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to slide tile',
     goal: 'Arrange all tiles in numerical order with the empty space last.',
-    similar: '15-Puzzle, Sliding Puzzle' },
-  { id: 'mines', name: 'Mines', desc: 'Classic minesweeper',
+    similar: '15-Puzzle, Sliding Puzzle'
+  },
+  {
+    id: 'mines', name: 'Mines', desc: 'Classic minesweeper',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to reveal, Space to flag',
     goal: 'Reveal all safe cells without hitting a mine.',
-    similar: 'Minesweeper (Windows)' },
-  { id: 'sudoku', name: 'Sudoku', desc: 'Number placement logic puzzle',
+    similar: 'Minesweeper (Windows)'
+  },
+  {
+    id: 'sudoku', name: 'Sudoku', desc: 'Number placement logic puzzle',
     controls: 'Arrow keys / WASD / HJKL to move, 1-9 to place, Space to clear',
     goal: 'Fill every row, column, and 3x3 box with digits 1-9.',
-    similar: 'Sudoku' },
-  { id: 'reversi', name: 'Reversi', desc: 'Strategic disc-flipping board game',
+    similar: 'Sudoku'
+  },
+  {
+    id: 'reversi', name: 'Reversi', desc: 'Strategic disc-flipping board game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to place disc',
     goal: 'Have the most discs of your color when the board is full.',
-    similar: 'Othello' },
-  { id: 'checkers', name: 'Checkers', desc: 'Classic diagonal capture game',
+    similar: 'Othello'
+  },
+  {
+    id: 'checkers', name: 'Checkers', desc: 'Classic diagonal capture game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to select/move piece',
     goal: "Capture all of your opponent's pieces or block them from moving.",
-    similar: 'Draughts' },
-  { id: 'sos', name: 'SOS', desc: 'Letter placement strategy game',
+    similar: 'Draughts'
+  },
+  {
+    id: 'sos', name: 'SOS', desc: 'Letter placement strategy game',
     controls: 'Arrow keys / WASD / HJKL to move, S or O to place letter',
     goal: 'Form as many S-O-S sequences as possible on the grid.',
-    similar: 'Tic-Tac-Toe (extended)' },
-  { id: 'battleship', name: 'Battleship', desc: 'Naval combat guessing game',
+    similar: 'Tic-Tac-Toe (extended)'
+  },
+  {
+    id: 'battleship', name: 'Battleship', desc: 'Naval combat guessing game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to fire',
     goal: "Sink all of your opponent's ships before they sink yours.",
-    similar: 'Battleship (board game)' },
-  { id: 'memoblocks', name: 'Memoblocks', desc: 'Memory matching card game',
+    similar: 'Battleship (board game)'
+  },
+  {
+    id: 'memoblocks', name: 'Memoblocks', desc: 'Memory matching card game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to flip card',
     goal: 'Match all pairs of cards with the fewest flips possible.',
-    similar: 'Concentration / Memory Game' },
-  { id: 'rabbithole', name: 'Rabbit Hole', desc: 'Maze navigation puzzle',
+    similar: 'Concentration / Memory Game'
+  },
+  {
+    id: 'rabbithole', name: 'Rabbit Hole', desc: 'Maze navigation puzzle',
     controls: 'Arrow keys / WASD / HJKL to move',
     goal: 'Guide the rabbit through the maze to collect all carrots.',
-    similar: 'Maze Runner' },
-  { id: 'revenge', name: 'Revenge', desc: 'Block-pushing puzzle game',
+    similar: 'Maze Runner'
+  },
+  {
+    id: 'revenge', name: 'Revenge', desc: 'Block-pushing puzzle game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to push',
     goal: 'Push blocks strategically to reach the goal.',
-    similar: 'Sokoban' },
+    similar: 'Sokoban'
+  },
 ].filter(g => {
   try { fs.accessSync(path.join(WASM_DIR, `${g.id}.js`)); return true; }
   catch { return false; }
@@ -88,6 +108,7 @@ let copilotStatus = 'idle';
 let statusPollInterval = null;
 let statusBarTimer = null;
 let vterm = null;
+let gameVterm = null;
 
 // ── Terminal size ───────────────────────────────────────────────────────────
 function getCols() { return process.stdout.columns || 80; }
@@ -102,11 +123,20 @@ function createVTerm() {
   });
 }
 
-function serializeVTerm() {
-  if (!vterm) return CLEAR;
-  const buf = vterm.buffer.active;
-  const rows = vterm.rows;
-  const cols = vterm.cols;
+function createGameVTerm() {
+  gameVterm = new VTerminal({
+    rows: getRows() - 1,
+    cols: getCols(),
+    allowProposedApi: true,
+  });
+}
+
+function serializeVTerm(term) {
+  if (!term) term = vterm;
+  if (!term) return CLEAR;
+  const buf = term.buffer.active;
+  const rows = term.rows;
+  const cols = term.cols;
   let out = CLEAR + RESET;
 
   for (let y = 0; y < rows; y++) {
@@ -164,14 +194,14 @@ function installHooks() {
       },
     }, null, 2));
     fs.writeFileSync(STATUS_FILE, 'idle');
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function cleanupHooks() {
-  try { fs.unlinkSync(STATUS_FILE); } catch (_) {}
-  try { fs.unlinkSync(HOOKS_FILE); } catch (_) {}
-  try { fs.rmdirSync(HOOKS_DIR); } catch (_) {}
-  try { fs.rmdirSync(path.join(process.cwd(), '.github')); } catch (_) {}
+  try { fs.unlinkSync(STATUS_FILE); } catch (_) { }
+  try { fs.unlinkSync(HOOKS_FILE); } catch (_) { }
+  try { fs.rmdirSync(HOOKS_DIR); } catch (_) { }
+  try { fs.rmdirSync(path.join(process.cwd(), '.github')); } catch (_) { }
 }
 
 function pollCopilotStatus() {
@@ -179,7 +209,7 @@ function pollCopilotStatus() {
     try {
       const s = fs.readFileSync(STATUS_FILE, 'utf8').trim();
       if (s !== copilotStatus) { copilotStatus = s; scheduleStatusBarRedraw(); }
-    } catch (_) {}
+    } catch (_) { }
   }, 1000);
 }
 
@@ -199,7 +229,7 @@ function drawStatusBar() {
   switch (copilotStatus) {
     case 'working': icon = `${CSI}33m\u27F3 AI working${RESET}`; break;
     case 'waiting': icon = `${CSI}32m\u25CF Needs input${RESET}`; break;
-    default:        icon = `${DIM}\u25CB Idle${RESET}`; break;
+    default: icon = `${DIM}\u25CB Idle${RESET}`; break;
   }
   let label, help;
   if (activeScreen === 'copilot') {
@@ -264,9 +294,9 @@ function drawFunScreen() {
   }
   const ir = row + maxVis + 1;
   process.stdout.write(`${CSI}${ir};1H${center(`${DIM}${'\u2500'.repeat(50)}${RESET}`, 50)}`);
-  process.stdout.write(`${CSI}${ir+1};1H${center(`${BOLD}${GREEN}${game.name}${RESET}  ${DIM}(like ${game.similar})${RESET}`, game.name.length + game.similar.length + 9)}`);
-  process.stdout.write(`${CSI}${ir+2};1H${center(`${CYAN}Controls:${RESET} ${game.controls}`, 10 + game.controls.length)}`);
-  process.stdout.write(`${CSI}${ir+3};1H${center(`${YELLOW}Goal:${RESET} ${game.goal}`, 6 + game.goal.length)}`);
+  process.stdout.write(`${CSI}${ir + 1};1H${center(`${BOLD}${GREEN}${game.name}${RESET}  ${DIM}(like ${game.similar})${RESET}`, game.name.length + game.similar.length + 9)}`);
+  process.stdout.write(`${CSI}${ir + 2};1H${center(`${CYAN}Controls:${RESET} ${game.controls}`, 10 + game.controls.length)}`);
+  process.stdout.write(`${CSI}${ir + 3};1H${center(`${YELLOW}Goal:${RESET} ${game.goal}`, 6 + game.goal.length)}`);
   drawStatusBar();
 }
 
@@ -278,12 +308,20 @@ function launchGame(gameId) {
   const rows = getRows() - 1;
   resetScrollRegion();
   process.stdout.write(CLEAR);
-  gameProcess = pty.spawn('node', [gameFile, '-n'], {
+  createGameVTerm();
+  const gameEnv = { ...process.env, TERM: 'xterm-256color', LINES: String(rows), COLS: String(cols) };
+  if (gameId === 'sudoku') gameEnv.SUDOKU_FASTGEN = '1';
+  const supportsN = ['fifteen', 'mines', 'reversi', 'checkers', 'sos', 'revenge'];
+  const gameArgs = gameId === 'sudoku' ? [gameFile, '-f'] : supportsN.includes(gameId) ? [gameFile, '-n'] : [gameFile];
+  gameProcess = pty.spawn('node', gameArgs, {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
-    env: { ...process.env, TERM: 'xterm-256color', LINES: String(rows), COLS: String(cols) },
+    env: gameEnv,
   });
-  gameProcess.onData((data) => { if (activeScreen === 'game') process.stdout.write(data); });
-  gameProcess.onExit(() => { gameProcess = null; if (activeScreen === 'game') { activeScreen = 'fun'; drawFunScreen(); } });
+  gameProcess.onData((data) => {
+    if (gameVterm) gameVterm.write(data);
+    if (activeScreen === 'game') process.stdout.write(data);
+  });
+  gameProcess.onExit(() => { gameProcess = null; gameVterm = null; if (activeScreen === 'game') { activeScreen = 'fun'; drawFunScreen(); } });
   drawStatusBar();
 }
 
@@ -293,17 +331,14 @@ function resumeGame() {
   if (!gameProcess) return false;
   activeScreen = 'game';
   resetScrollRegion();
-  process.stdout.write(CLEAR);
-  const cols = getCols();
-  const rows = getRows() - 1;
-  gameProcess.resize(Math.max(1, cols - 1), rows);
-  setTimeout(() => { if (gameProcess && activeScreen === 'game') { gameProcess.resize(cols, rows); drawStatusBar(); } }, 50);
+  process.stdout.write(serializeVTerm(gameVterm));
   drawStatusBar();
   return true;
 }
 
 function destroyGame() {
-  if (gameProcess) { try { gameProcess.destroy(); } catch (_) {} gameProcess = null; }
+  if (gameProcess) { try { gameProcess.destroy(); } catch (_) { } gameProcess = null; }
+  gameVterm = null;
 }
 
 // ── Copilot PTY ─────────────────────────────────────────────────────────────
@@ -334,7 +369,7 @@ function switchToFun() { activeScreen = 'fun'; drawFunScreen(); }
 function switchToCopilot() {
   activeScreen = 'copilot';
   resetScrollRegion();
-  process.stdout.write(serializeVTerm());
+  process.stdout.write(serializeVTerm(vterm));
   setScrollRegion();
   drawStatusBar();
 }
@@ -386,6 +421,7 @@ process.stdout.on('resize', () => {
   if (ptyProcess) ptyProcess.resize(cols, rows);
   if (vterm) vterm.resize(cols, rows);
   if (gameProcess) gameProcess.resize(cols, rows);
+  if (gameVterm) gameVterm.resize(cols, rows);
   if (activeScreen === 'copilot') { setScrollRegion(); drawStatusBar(); }
   else if (activeScreen === 'fun') drawFunScreen();
   else drawStatusBar();
@@ -395,7 +431,7 @@ process.stdout.on('resize', () => {
 function cleanup() {
   resetScrollRegion();
   process.stdout.write(SHOW_CURSOR + RESET);
-  if (process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch (_) {} }
+  if (process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch (_) { } }
   if (statusPollInterval) clearInterval(statusPollInterval);
   if (statusBarTimer) clearTimeout(statusBarTimer);
   destroyGame();

@@ -1,7 +1,7 @@
 ---
-title: "Copilot Fun Mode — A TUI Wrapper Around GitHub Copilot CLI"
+title: "Copilot Fun Mode — Play Games While Your AI Codes 🎮"
 published: false
-description: "How I built a terminal wrapper around GitHub Copilot CLI that lets you toggle to a fun screen while your AI codes. Built entirely with Copilot CLI."
+description: "I built a TUI wrapper around GitHub Copilot CLI that lets you play WASM-compiled terminal games while waiting for your AI. Built entirely with Copilot CLI."
 tags: copilot, cli, tui, nodejs
 cover_image:
 ---
@@ -16,165 +16,227 @@ And how did I build it? **Completely coded using Copilot CLI** with a combinatio
 
 <!-- HERE VIDEO / ASCIINEMA SNIPPET -->
 
-## The Idea: Games While Your AI Codes
+## And What Game We Gonna Play?
 
 We have multiple options for turn-based games: Tic-Tac-Toe, Go, Chess, Pexeso (let's see what you remember after giving your AGI the next prompt 😄).
 
-I found [nbsdgames](https://github.com/abakh/nbsdgames) — a collection of 23 terminal games written in C using ncurses. Perfect for our use case. But we wanted cross-platform compatibility without requiring users to compile C code...
+For those games I decided to use existing ones. "Find TUI games, nodejs, my AGI..."
+
+I found [nbsdgames](https://github.com/abakh/nbsdgames) — a collection of 23 terminal games written in C using ncurses. Perfect. But we wanted cross-platform compatibility without requiring users to compile C code...
 
 ### The WASM Twist
 
-So I compiled all 20 games to **WebAssembly** using Emscripten. That means: no native binaries, no C compiler needed on the user's machine. Just `node` and you're playing Minesweeper while your AI refactors your codebase.
+So I compiled the games to **WebAssembly** using Emscripten. No native binaries, no C compiler needed on the user's machine. Just `node` and you're playing Minesweeper while your AI refactors your codebase.
 
-The hardest part? **ncurses doesn't exist in WASM.** I had to write a complete ncurses shim (~360 lines) that maps all curses functions to ANSI escape codes:
-- `initscr()` → switch to alt screen buffer
-- `mvaddch()` / `mvprintw()` → cursor positioning + character output
-- `getch()` → async stdin read via Emscripten's ASYNCIFY
-- Colors, attributes, box-drawing characters — all mapped to ANSI equivalents
+The hardest part? **ncurses doesn't exist in WASM.** I had to write a complete ncurses shim (~370 lines) that maps all curses functions to ANSI escape codes:
 
-The concept is simple: wrap Copilot CLI in a TUI that lets you **toggle** between the Copilot session and a game menu using `Ctrl-G`.
+```c
+// wasm/curses.h — the ncurses-to-ANSI bridge
+static WINDOW* initscr(void) {
+    em_setup_term();                // init JS key parser
+    _emit("\033[?1049h");           // alt screen buffer
+    _emit("\033[2J\033[H");         // clear + home
+    return stdscr;
+}
 
-## How Does It Work?
+static int getch(void) {
+    return em_getch(timeout);       // async stdin via ASYNCIFY
+}
+```
 
-It's a wrapper — a wrapper around Copilot CLI + [Copilot Hooks](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-hooks), so you can execute commands after any action your agent takes.
+Input was trickier — C's `getch()` blocks, but JavaScript stdin is async. Emscripten's **ASYNCIFY** bridges this gap, suspending the WASM execution while we await a keypress. And since PTY raw mode sends `\r` instead of `\n`, the shim translates CR→LF so games that check for `'\n'` work correctly.
 
-### The Interface Problem
+## You Are Maybe Asking, How Could This Work?
 
-We can't simply embed into the Copilot TUI — there are no hooks for that and it's not open-source. But we **can** wrap the entire process using a pseudo-terminal (PTY).
+Again, it's a wrapper — a wrapper around Copilot CLI + [Copilot Hooks](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-hooks), so you can execute commands after any action your agent takes.
 
-The key challenge: we need to toggle between a "gaming TUI screen" and the "copilot screen" **within the same process**. I initially considered tmux, but that's not cross-platform (no Windows support).
+### Could We Integrate Straight Into the TUI?
 
-### The Solution: node-pty + Alternate Screen Buffers
+No. There are no hooks for that and currently it's not open-source (I don't know if Microsoft would happily upvote this project by being slightly toxic 😅).
 
-The approach is elegant in its simplicity:
+So I asked Copilot to explore the [Copilot CLI documentation](https://docs.github.com/en/copilot/how-tos/copilot-cli/). And we found something — we can use GitHub CLI hooks to track what the AI is doing:
 
-1. **Spawn Copilot CLI** inside a pseudo-terminal using `node-pty`
-2. **Pipe raw terminal data** between the real terminal and the PTY
-3. **Intercept `Ctrl-G`** (byte `0x07`) to toggle screens
-4. Use **ANSI alternate screen buffers** (`\x1b[?1049h` / `\x1b[?1049l`) to seamlessly save/restore the Copilot display
-
-This means:
-- ✅ Cross-platform (works on Windows, macOS, Linux via node-pty)
-- ✅ Same process, no tmux dependency
-- ✅ Full Copilot CLI experience preserved (colors, cursor, scrolling)
-- ✅ Zero performance overhead
-- ✅ Single `npm install` and you're running
-
-### The Code
-
-The entire wrapper is ~170 lines of vanilla Node.js with a single dependency (`node-pty`). Here's the core toggle mechanism:
-
-```javascript
-// Ctrl-G detected in raw stdin
-function toggle() {
-  if (activeScreen === 'copilot') {
-    // Save copilot screen using alt screen buffer
-    process.stdout.write('\x1b[?1049h');
-    drawFunScreen();
-  } else {
-    // Restore copilot screen
-    process.stdout.write('\x1b[?1049l');
-    drawStatusBar();
+```json
+{
+  "hooks": {
+    "userPromptSubmitted": [{ "bash": "echo working > .copilot-fun-status" }],
+    "postToolUse": [{ "bash": "echo waiting > .copilot-fun-status" }]
   }
 }
 ```
 
-The alternate screen buffer is the same mechanism `vim`, `less`, and `htop` use — when you exit them, your previous terminal content is perfectly restored. We use this to preserve the Copilot session while showing the fun screen.
+The wrapper polls this file and shows the AI status in a persistent status bar — **⟳ AI working**, **● Needs input**, or **○ Idle** — visible whether you're in Copilot, the game menu, or mid-game.
+
+### But for the Interface?
+
+We can't simply use Copilot because we want to toggle between a "gaming TUI screen" and the "copilot screen." I was thinking about tmux, but that's problematic because it doesn't run on Windows. I wanted something cross-platform that runs in the same process.
+
+## The Solution: Virtual Terminals (Like tmux, But In-Process)
+
+The key insight came from how tmux actually works internally. It doesn't use ANSI alternate screen buffers to switch panes — it maintains a **virtual terminal** for each pane and renders whichever is active.
+
+I use **@xterm/headless** (the same xterm.js that powers VS Code's terminal, but without the DOM) to track screen state:
+
+```
+┌─────────────────────────────────────────┐
+│  Your Terminal                          │
+│  ┌───────────────────────────────────┐  │
+│  │  index.js (wrapper)               │  │
+│  │                                   │  │
+│  │  ┌─────────────┐  ┌───────────┐   │  │
+│  │  │ Copilot PTY │  │ Game PTY  │   │  │
+│  │  │ + VTerminal │  │ + VTerm   │   │  │
+│  │  └─────────────┘  └───────────┘   │  │
+│  │                                   │  │
+│  │  [Status Bar: ⟳ AI working]       │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
+**Both** Copilot and the game run in their own PTY with a headless VTerminal recording every byte of output. When you press Ctrl-G to switch, the wrapper reads the VTerminal buffer cell-by-cell and replays the exact screen state — colors, attributes, cursor position — just like tmux does.
+
+```javascript
+function serializeVTerm(term) {
+  const buf = term.buffer.active;
+  let out = CLEAR;
+  for (let y = 0; y < term.rows; y++) {
+    const line = buf.getLine(y);
+    for (let x = 0; x < term.cols; x++) {
+      const cell = line.getCell(x);
+      // reconstruct ANSI sequences for fg, bg, bold, dim, etc.
+      out += buildAnsi(cell) + cell.getChars();
+    }
+  }
+  out += `\x1b[${buf.cursorY+1};${buf.cursorX+1}H`; // restore cursor
+  return out;
+}
+```
+
+This means:
+- ✅ Cross-platform (Windows, macOS, Linux via node-pty)
+- ✅ Same process, no tmux needed
+- ✅ Copilot session fully preserved (history, colors, scrollback)
+- ✅ Game state preserved on pause/resume
+- ✅ Single `npm install` and you're running
 
 ## Running It
 
 ```bash
-# Clone and install
 git clone <repo-url>
 cd copilot-fun
-npm install
+npm install && npm link
 
-# Link globally
-npm link
-
-# Run it!
+# Launch!
 copilot-cli
 
-# Pass any copilot args through
+# Or with model selection
 copilot-cli --model claude-sonnet-4
 ```
 
-Once running:
-- **`Ctrl-G`** — Toggle between Copilot and the Game Menu
-- **`↑/↓` or `j/k`** — Navigate the game list
-- **`Enter`** — Launch the selected game
-- **`q`** — Return to Copilot from menu
-- **`Ctrl-C`** — Forward to active process
+**Controls:**
+- **Ctrl-G** — Toggle between Copilot ↔ Game Menu
+- **↑↓ / W/S** — Navigate games
+- **Enter** — Play (or resume paused game)
+- **Ctrl-G in-game** — Pause and return to menu
+- **Q** — Quit game / return to Copilot
 
-### Available Games (20 WASM-compiled from nbsdgames)
+### 10 Turn-Based Games
 
-Fifteen, Mines, Sudoku, Reversi, Checkers, Jewels, Pipes, SOS, Battleship, Memoblocks, Snake Duel, Miketron, Red Square, Muncher, Fisher, Rabbit Hole, Darrt, S-Jump, Tug of War, Revenge
+All compiled from C to WASM — no native dependencies:
+
+| Game | Like... |
+|------|---------|
+| 💣 Mines | Minesweeper |
+| 🧩 Sudoku | Sudoku |
+| 🔢 Fifteen | 15-Puzzle |
+| ⚫ Reversi | Othello |
+| 🏁 Checkers | Draughts |
+| 🎯 SOS | Tic-Tac-Toe (ext.) |
+| 🚢 Battleship | Battleship |
+| 🃏 Memoblocks | Concentration |
+| 🐇 Rabbit Hole | Maze Runner |
+| 📦 Revenge | Sokoban |
+
+## The Build Pipeline
+
+Compiling C ncurses games to WASM that run in a Node.js terminal — there's not exactly a tutorial for that. Here's what made it work:
+
+### 1. ncurses Shim (`wasm/curses.h`)
+
+370 lines replacing every ncurses function with ANSI escape code equivalents. `initscr()` enters alt screen, `mvaddch()` moves the cursor, `attron(COLOR_PAIR(n))` maps to `\033[3Xm`. No actual ncurses library involved.
+
+### 2. Async Input Bridge (`wasm/term_input.js`)
+
+An Emscripten JS library that provides `em_getch()`. It puts stdin in raw mode, parses arrow key escape sequences into ncurses constants (`KEY_UP = 0x103`), and uses ASYNCIFY to let the C code block on input while JavaScript handles it asynchronously.
+
+### 3. The Emscripten Flags That Matter
+
+```bash
+emcc -O2 \
+  -s ASYNCIFY=1 \                    # C getch() can "block"
+  -s ASYNCIFY_IMPORTS=["em_getch"] \ # our JS function suspends WASM
+  -s FORCE_FILESYSTEM=1 \            # need this for proper stdout
+  -s NODERAWFS=1 \                   # use Node's fs directly
+  -s ENVIRONMENT=node \              # no browser, no web worker
+  --js-library wasm/term_input.js    # inject our input bridge
+```
+
+Without `FORCE_FILESYSTEM=1 NODERAWFS=1`, Emscripten's default `printChar` only flushes on newline — which completely breaks ANSI escape code output. That one took a while to figure out.
+
+### Docker Compilation
+
+```bash
+docker build -t copilot-fun-build .
+docker run --rm -v $(pwd)/wasm:/build/wasm copilot-fun-build
+```
+
+Or just run `./build-wasm.sh` if you have Emscripten installed locally.
 
 ## Alternatives Considered
 
-Here's a breakdown of the approaches I evaluated before landing on the final solution:
+Here's a breakdown of approaches I evaluated:
 
-### 1. **tmux / Screen** (Rejected)
-- **Pros**: Battle-tested, multiple panes, session persistence
-- **Cons**: Not cross-platform (no native Windows), external dependency, complex scripting for toggle UX
-- **Verdict**: Great tool, wrong job. We need something in-process.
+### tmux / Screen (Rejected)
+Battle-tested multiplexer, but not cross-platform — no native Windows support. We need something in-process.
 
-### 2. **blessed (Node.js)** (Rejected)
-- **Pros**: Rich widget library, layout system, mouse support
-- **Cons**: `blessed.terminal` requires deprecated `term.js`, project unmaintained since 2015, heavy dependency
-- **Verdict**: Would have been ideal if the terminal widget worked. The library is essentially dead.
+### blessed (Rejected)
+Rich Node.js TUI library, but `blessed.terminal` requires deprecated `term.js`. Project unmaintained since 2015. Same issue with forks (neo-blessed, @pm2/blessed).
 
-### 3. **neo-blessed / @pm2/blessed** (Considered)
-- **Pros**: Maintained fork of blessed, same API
-- **Cons**: Same terminal widget issue with `term.js`, still carries blessed's complexity
-- **Verdict**: Same problems, different maintainer.
+### Ink (Rejected)
+React for CLI — great paradigm, but can't embed a raw PTY stream in a React component tree. Wrong abstraction level for wrapping an existing terminal program.
 
-### 4. **blessed-xterm** (Considered)
-- **Pros**: Proper xterm emulation in blessed, modern terminal handling
-- **Cons**: Adds xterm.js + blessed as dependencies, complex rendering pipeline, overkill for a toggle wrapper
-- **Verdict**: Over-engineered for our needs.
+### terminal-kit (Considered)
+Rich terminal manipulation, but its abstraction layer fights with raw PTY passthrough. Viable but unnecessary overhead.
 
-### 5. **Ink (React for CLI)** (Rejected)
-- **Pros**: Modern, React paradigm, great for complex TUIs
-- **Cons**: Cannot embed a raw PTY stream in a React component tree, fundamentally wrong abstraction level
-- **Verdict**: Perfect for building CLI apps, wrong for wrapping an existing terminal program.
+### node-pty + ANSI alt screen (Tried, then outgrew)
+My first approach: use `\x1b[?1049h/l` to save/restore screens. Simple and elegant — until it broke because Copilot CLI uses alt screen buffers itself. Nested alt screens don't work.
 
-### 6. **terminal-kit** (Considered)
-- **Pros**: Rich terminal manipulation, screen buffers, input handling
-- **Cons**: Large dependency, its own abstraction layer fights with raw PTY passthrough
-- **Verdict**: Viable but unnecessary overhead.
+### node-pty + @xterm/headless ✅ (Final)
+The tmux approach: headless virtual terminals tracking screen state, cell-by-cell serialization on switch. Two dependencies (`node-pty` + `@xterm/headless`), full control, and it actually works with Copilot's complex terminal output.
 
-### 7. **Raw node-pty + ANSI escape codes** ✅ (Chosen)
-- **Pros**: Minimal dependencies (just node-pty), cross-platform, full control, zero abstraction overhead, uses battle-tested ANSI alternate screen buffer mechanism
-- **Cons**: Manual ANSI escape code handling, no widget system
-- **Verdict**: **Winner.** Sometimes the simplest solution is the best. The alternate screen buffer trick gives us perfect screen save/restore for free.
+### Language alternatives
+**Python (Textual)** — gorgeous TUIs, but different ecosystem. **Go (bubbletea)** — single-binary advantage, strong alternative. If building for distribution, I'd seriously consider bubbletea.
 
-### 8. **Electron / Tauri** (Not considered seriously)
-- **Pros**: Full GUI, web technologies
-- **Cons**: Nuclear warhead to kill a mosquito. We want a CLI wrapper, not a desktop app.
+## What I Learned
 
-### 9. **Python (curses / Textual)** (Language alternative)
-- **Pros**: curses is battle-tested, Textual is modern and gorgeous
-- **Cons**: Different ecosystem from Copilot CLI (Node.js), Python PTY handling is less polished on Windows
-- **Verdict**: Great option if you're in the Python world. Textual especially would give beautiful results.
+1. **Alternate screen buffers nest poorly.** If your wrapped application uses `?1049h` internally (Copilot does), you can't use it for your own screen switching. Virtual terminals solve this.
 
-### 10. **Go (tcell / bubbletea)** (Language alternative)
-- **Pros**: Single binary distribution, excellent terminal handling, bubbletea is fantastic
-- **Cons**: Go's PTY libraries are less mature on Windows, compile step needed
-- **Verdict**: **Strong alternative.** If I were building this for distribution, I'd seriously consider bubbletea for the single-binary advantage.
+2. **WASM + terminal I/O is uncharted territory.** There's no ncurses for WASM, no tutorials, no Stack Overflow answers. You have to build the bridge yourself.
 
-## What's Next
+3. **PTY raw mode sends `\r`, games expect `\n`.** A single byte translation (`13 → 10`) fixed controls in all 10 games. Took hours to diagnose.
 
-The fun screen currently shows a "HELLO THERE" splash. The plan is to add:
-- 🎮 Embedded TUI games (Tic-Tac-Toe, Chess via existing npm packages)
-- 🔔 Copilot hook notifications (know when your agent needs approval without switching back)
-- 📊 Agent activity dashboard
-- 🎵 Maybe even some terminal ASCII art animations
+4. **Copilot CLI enables focus reporting** (`\x1b[?1004h`), producing `ESC[I` and `ESC[O` events that appear as `^[[I^[[O` artifacts. Disable it, strip it, filter it.
+
+5. **Emscripten's stdout buffering is line-based by default.** Without `NODERAWFS`, partial ANSI sequences get buffered and the terminal shows garbage. `FORCE_FILESYSTEM=1` fixes it but it's nowhere in the docs.
 
 ## Conclusion
 
-Sometimes the best tool is the simplest one. Instead of fighting with complex TUI frameworks, we just used raw ANSI escape codes and the alternate screen buffer — the same trick that `vim` and `less` have used for decades.
+I built a terminal multiplexer that doesn't need tmux, a ncurses implementation that doesn't need ncurses, and a cross-platform game bundle that runs anywhere Node.js does.
 
-The entire wrapper is ~170 lines, has one dependency, and works cross-platform. **That's the power of understanding your terminal.**
+The entire wrapper is ~450 lines, has two dependencies, and was built entirely using the tool it wraps.
 
-Built with ❤️ using Copilot CLI — an AI building its own entertainment system. How meta is that?
+**Built with ❤️ using Copilot CLI** — an AI building its own entertainment system. How meta is that?
+
+---
+
+*Check out the [GitHub repository](https://github.com/user/copilot-fun) for the full source code and [GAMES.md](https://github.com/user/copilot-fun/blob/main/GAMES.md) for detailed game guides.*

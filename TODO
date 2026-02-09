@@ -1,0 +1,4 @@
+
+- [ ] Github propagated status of window is not propagated when not in copilot view. 
+- [ ] Switching between gamemode and list of games should trigger redraw same way as resize, otherwise its buggy and part of windows is drawn incomplete
+- [ ] Openned game should still have bottom blue panel so I can see if Copilot is working.
