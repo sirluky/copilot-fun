@@ -171,6 +171,11 @@ All games are turn-based — perfect for playing while waiting for Copilot respo
 
 Pre-compiled `.js` + `.wasm` files are included in `wasm/`. If you want to recompile:
 
+First clone the original C source code for the games:
+```bash
+git clone https://github.com/abakh/nbsdgames.git nbsdgames
+```
+
 ### With Docker (recommended)
 
 ```bash
