@@ -1,5 +1,11 @@
 
 - [ ] Github propagated status of window is not propagated when not in copilot view. 
 - [ ] Switching between gamemode and list of games should trigger redraw same way as resize, otherwise its buggy and part of windows is drawn incomplete
-- [ ] Openned game should still have bottom blue panel so I can see if Copilot is working.
+- [ ] Openned game should still have bottom blue panel so I can see if Copilot is working (currently i see it only when resizing window, it seems that game overdraws).
+- [ ] Show, press q to quit game (also react to ESC, its ignored currently and it field best to the user)
+- [ ] When Ctrl-c is pressed multiple times it should close the game, then menu, then copilot (decide optimal ux).
+- [ ] Yolo mode(that will tell you what are you allowing before starting) (allow file edits, commands, everything what can be allowed in copilot cli)
+- [ ] Detect game finish (don't like empty screen)
+- [ ] When toggling I don't wanna toggl copilot, menu and having to open the game again, I want you to remember last opened game and toggle directly between it.
 - [ ] Add agent instruction for copilot for the game so i can run /ask-game and it will tell me info about it.
+

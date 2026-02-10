@@ -4,7 +4,7 @@
   "description": "Copilot Fun Mode - A TUI wrapper around GitHub Copilot CLI with a toggleable game/fun screen",
   "main": "index.js",
   "bin": {
-    "copilot-cli": "./index.js"
+    "copilot-fun": "./index.js"
   },
   "scripts": {
     "start": "node index.js",

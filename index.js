@@ -1,19 +1,36 @@
 #!/usr/bin/env node
 
+// @ts-check
+
 const pty = require('node-pty');
 const { Terminal: VTerminal } = require('@xterm/headless');
 const path = require('path');
 const fs = require('fs');
 
+/**
+ * @typedef {'copilot' | 'fun' | 'game'} Screen
+ * @typedef {'idle' | 'working' | 'waiting'} CopilotStatus
+ * @typedef {{ id: string, name: string, desc: string, controls: string, goal: string, similar: string }} GameDef
+ */
+
 // ── Config ──────────────────────────────────────────────────────────────────
+/** @type {boolean} */
+const YOLO_FLAG = process.argv.includes('--yolo');
+/** @type {string} */
 const COPILOT_CMD = process.env.COPILOT_BIN || 'copilot';
-const COPILOT_ARGS = process.argv.slice(2);
+/** @type {string[]} */
+const COPILOT_ARGS = process.argv.slice(2).filter(a => a !== '--yolo');
+/** @type {string} */
 const WASM_DIR = path.join(__dirname, 'wasm');
+/** @type {string} */
 const STATUS_FILE = path.join(process.cwd(), '.copilot-fun-status');
+/** @type {string} */
 const HOOKS_DIR = path.join(process.cwd(), '.github', 'hooks');
+/** @type {string} */
 const HOOKS_FILE = path.join(HOOKS_DIR, 'copilot-fun.json');
 
 // ── Available games (turn-based only) ───────────────────────────────────────
+/** @type {GameDef[]} */
 const GAMES = [
   {
     id: 'fifteen', name: 'Fifteen Puzzle', desc: 'Slide numbered tiles into order',
@@ -80,41 +97,73 @@ const GAMES = [
   catch { return false; }
 });
 
-// ANSI helpers
+// ── ANSI helpers ────────────────────────────────────────────────────────────
+/** @type {string} */
 const ESC = '\x1b';
+/** @type {string} */
 const CSI = `${ESC}[`;
+/** @type {string} */
 const CLEAR = `${CSI}2J${CSI}H`;
+/** @type {string} */
 const HIDE_CURSOR = `${CSI}?25l`;
+/** @type {string} */
 const SHOW_CURSOR = `${CSI}?25h`;
+/** @type {string} */
 const BOLD = `${CSI}1m`;
+/** @type {string} */
 const RESET = `${CSI}0m`;
+/** @type {string} */
 const CYAN = `${CSI}36m`;
+/** @type {string} */
 const GREEN = `${CSI}32m`;
+/** @type {string} */
 const YELLOW = `${CSI}33m`;
+/** @type {string} */
 const DIM = `${CSI}2m`;
+/** @type {string} */
 const BG_BLUE = `${CSI}44m`;
+/** @type {string} */
 const BG_CYAN = `${CSI}46m`;
+/** @type {string} */
 const BLACK = `${CSI}30m`;
+/** @type {string} */
 const WHITE = `${CSI}37m`;
 
+/** @type {RegExp} */
 const FOCUS_RE = /\x1b\[[IO]/g;
 
 // ── State ───────────────────────────────────────────────────────────────────
+/** @type {Screen} */
 let activeScreen = 'copilot';
+/** @type {import('node-pty').IPty | null} */
 let ptyProcess = null;
+/** @type {import('node-pty').IPty | null} */
 let gameProcess = null;
+/** @type {number} */
 let selectedGame = 0;
+/** @type {CopilotStatus} */
 let copilotStatus = 'idle';
+/** @type {ReturnType<typeof setInterval> | null} */
 let statusPollInterval = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
 let statusBarTimer = null;
+/** @type {InstanceType<typeof VTerminal> | null} */
 let vterm = null;
+/** @type {InstanceType<typeof VTerminal> | null} */
 let gameVterm = null;
+/** @type {string | null} */
+let lastGameId = null;
+/** @type {number} */
+let ctrlCTime = 0;
 
 // ── Terminal size ───────────────────────────────────────────────────────────
+/** @returns {number} */
 function getCols() { return process.stdout.columns || 80; }
+/** @returns {number} */
 function getRows() { return process.stdout.rows || 24; }
 
 // ── Virtual terminal (tracks copilot screen state like tmux) ────────────────
+/** @returns {void} */
 function createVTerm() {
   vterm = new VTerminal({
     rows: getRows() - 1,
@@ -123,6 +172,7 @@ function createVTerm() {
   });
 }
 
+/** @returns {void} */
 function createGameVTerm() {
   gameVterm = new VTerminal({
     rows: getRows() - 1,
@@ -131,6 +181,11 @@ function createGameVTerm() {
   });
 }
 
+/**
+ * Serialize a virtual terminal's screen buffer to ANSI escape sequences.
+ * @param {InstanceType<typeof VTerminal> | null} [term] - Terminal to serialize (defaults to copilot vterm)
+ * @returns {string} ANSI escape sequence string that reproduces the screen
+ */
 function serializeVTerm(term) {
   if (!term) term = vterm;
   if (!term) return CLEAR;
@@ -143,7 +198,12 @@ function serializeVTerm(term) {
     const line = buf.getLine(y);
     if (!line) continue;
     out += `${CSI}${y + 1};1H`;
-    let pFg = -99, pBg = -99, pB = false, pD = false, pU = false, pR = false;
+    /** @type {number} */ let pFg = -99;
+    /** @type {number} */ let pBg = -99;
+    /** @type {boolean} */ let pB = false;
+    /** @type {boolean} */ let pD = false;
+    /** @type {boolean} */ let pU = false;
+    /** @type {boolean} */ let pR = false;
 
     for (let x = 0; x < cols; x++) {
       const cell = line.getCell(x);
@@ -157,6 +217,7 @@ function serializeVTerm(term) {
       const r = !!(cell.isInverse && cell.isInverse());
 
       if (fg !== pFg || bg !== pBg || b !== pB || d !== pD || u !== pU || r !== pR) {
+        /** @type {string[]} */
         const p = ['0'];
         if (b) p.push('1');
         if (d) p.push('2');
@@ -181,6 +242,7 @@ function serializeVTerm(term) {
 }
 
 // ── Copilot hooks ───────────────────────────────────────────────────────────
+/** @returns {void} */
 function installHooks() {
   try {
     fs.mkdirSync(HOOKS_DIR, { recursive: true });
@@ -197,6 +259,7 @@ function installHooks() {
   } catch (_) { }
 }
 
+/** @returns {void} */
 function cleanupHooks() {
   try { fs.unlinkSync(STATUS_FILE); } catch (_) { }
   try { fs.unlinkSync(HOOKS_FILE); } catch (_) { }
@@ -204,41 +267,49 @@ function cleanupHooks() {
   try { fs.rmdirSync(path.join(process.cwd(), '.github')); } catch (_) { }
 }
 
+/** @returns {void} */
 function pollCopilotStatus() {
   statusPollInterval = setInterval(() => {
     try {
-      const s = fs.readFileSync(STATUS_FILE, 'utf8').trim();
+      const s = /** @type {CopilotStatus} */ (fs.readFileSync(STATUS_FILE, 'utf8').trim());
       if (s !== copilotStatus) { copilotStatus = s; scheduleStatusBarRedraw(); }
     } catch (_) { }
   }, 1000);
 }
 
 // ── Status bar ──────────────────────────────────────────────────────────────
+/** @returns {void} */
 function setScrollRegion() {
   process.stdout.write(`${CSI}1;${getRows() - 1}r`);
 }
 
+/** @returns {void} */
 function resetScrollRegion() {
   process.stdout.write(`${CSI}r`);
 }
 
+/** @returns {void} */
 function drawStatusBar() {
   const cols = getCols();
   const rows = getRows();
+  /** @type {string} */
   let icon;
   switch (copilotStatus) {
     case 'working': icon = `${CSI}33m\u27F3 AI working${RESET}`; break;
     case 'waiting': icon = `${CSI}32m\u25CF Needs input${RESET}`; break;
     default: icon = `${DIM}\u25CB Idle${RESET}`; break;
   }
-  let label, help;
+  /** @type {string} */
+  let label;
+  /** @type {string} */
+  let help;
   if (activeScreen === 'copilot') {
     label = ' COPILOT '; help = '  Ctrl-G: games';
   } else if (activeScreen === 'fun') {
     label = ' FUN MODE ';
     help = gameProcess ? '  Enter: resume  n: new  \u2191\u2193/WS: select  q: copilot' : '  Enter: play  \u2191\u2193/WS: select  q/Ctrl-G: back';
   } else {
-    label = ' PLAYING '; help = '  Ctrl-G: pause  q: quit game';
+    label = ' PLAYING '; help = '  q/ESC: quit game  Ctrl-G: copilot';
   }
   const status = `  [${icon}${BG_BLUE}]`;
   const rawLen = label.length + help.length + copilotStatus.length + 10;
@@ -253,20 +324,28 @@ function drawStatusBar() {
   );
 }
 
+/** @returns {void} */
 function scheduleStatusBarRedraw() {
   if (statusBarTimer) return;
   statusBarTimer = setTimeout(() => { statusBarTimer = null; drawStatusBar(); }, 80);
 }
 
 // ── Fun screen (game menu) ─────────────────────────────────────────────────
+/** @returns {void} */
 function drawFunScreen() {
   const cols = getCols();
   const rows = getRows();
-  resetScrollRegion();
+  setScrollRegion();
   process.stdout.write(CLEAR + HIDE_CURSOR);
+  /**
+   * @param {string} text
+   * @param {number} [rawLen]
+   * @returns {string}
+   */
   function center(text, rawLen) {
     return ' '.repeat(Math.max(0, Math.floor((cols - (rawLen || text.length)) / 2))) + text;
   }
+  /** @type {string[]} */
   const header = [
     `${BOLD}${CYAN}  \u2554\u2550\u2557\u2554\u2550\u2557\u2554\u2550\u2557\u2566\u2566  \u2554\u2550\u2557\u2554\u2566\u2557  \u2554\u2550\u2557\u2566 \u2566\u2554\u2557\u2554${RESET}`,
     `${BOLD}${CYAN}  \u2551  \u2551 \u2551\u2560\u2550\u2563\u2551\u2551  \u2551 \u2551 \u2551   \u2560\u2563 \u2551 \u2551\u2551\u2551\u2551${RESET}`,
@@ -301,32 +380,53 @@ function drawFunScreen() {
 }
 
 // ── Game management ─────────────────────────────────────────────────────────
+/**
+ * Launch a WASM game by ID.
+ * @param {string} gameId - The game identifier (e.g. 'mines', 'sudoku')
+ * @returns {void}
+ */
 function launchGame(gameId) {
   activeScreen = 'game';
+  lastGameId = gameId;
   const gameFile = path.join(WASM_DIR, `${gameId}.js`);
   const cols = getCols();
   const rows = getRows() - 1;
   setScrollRegion();
   process.stdout.write(CLEAR);
   createGameVTerm();
+  /** @type {Record<string, string>} */
   const gameEnv = { ...process.env, TERM: 'xterm-256color', LINES: String(rows), COLS: String(cols) };
   if (gameId === 'sudoku') gameEnv.SUDOKU_FASTGEN = '1';
+  /** @type {string[]} */
   const supportsN = ['fifteen', 'mines', 'reversi', 'checkers', 'sos', 'revenge'];
+  /** @type {string[]} */
   const gameArgs = gameId === 'sudoku' ? [gameFile, '-f'] : supportsN.includes(gameId) ? [gameFile, '-n'] : [gameFile];
   gameProcess = pty.spawn('node', gameArgs, {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: gameEnv,
   });
-  gameProcess.onData((data) => {
+  gameProcess.onData((/** @type {string} */ data) => {
     if (gameVterm) gameVterm.write(data);
-    if (activeScreen === 'game') process.stdout.write(data);
+    if (activeScreen === 'game') {
+      process.stdout.write(data);
+      drawStatusBar();
+    }
   });
-  gameProcess.onExit(() => { gameProcess = null; gameVterm = null; if (activeScreen === 'game') { activeScreen = 'fun'; drawFunScreen(); } });
+  gameProcess.onExit(() => {
+    gameProcess = null;
+    gameVterm = null;
+    if (activeScreen === 'game') {
+      activeScreen = 'fun';
+      drawFunScreen();
+    }
+  });
   drawStatusBar();
 }
 
+/** @returns {void} */
 function pauseGame() { activeScreen = 'fun'; drawFunScreen(); }
 
+/** @returns {boolean} */
 function resumeGame() {
   if (!gameProcess) return false;
   activeScreen = 'game';
@@ -336,12 +436,14 @@ function resumeGame() {
   return true;
 }
 
+/** @returns {void} */
 function destroyGame() {
   if (gameProcess) { try { gameProcess.destroy(); } catch (_) { } gameProcess = null; }
   gameVterm = null;
 }
 
 // ── Copilot PTY ─────────────────────────────────────────────────────────────
+/** @returns {void} */
 function startCopilot() {
   const cols = getCols();
   const rows = getRows() - 1;
@@ -352,7 +454,7 @@ function startCopilot() {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: { ...process.env, TERM: 'xterm-256color' },
   });
-  ptyProcess.onData((data) => {
+  ptyProcess.onData((/** @type {string} */ data) => {
     if (vterm) vterm.write(data);
     if (activeScreen === 'copilot') {
       const cleaned = data.replace(FOCUS_RE, '');
@@ -360,40 +462,78 @@ function startCopilot() {
       scheduleStatusBarRedraw();
     }
   });
-  ptyProcess.onExit(({ exitCode }) => { cleanup(); process.exit(exitCode || 0); });
+  ptyProcess.onExit((/** @type {{ exitCode: number }} */ { exitCode }) => { cleanup(); process.exit(exitCode || 0); });
 }
 
 // ── Screen switching ────────────────────────────────────────────────────────
+/** @returns {void} */
 function switchToFun() { activeScreen = 'fun'; drawFunScreen(); }
 
+/** @returns {void} */
 function switchToCopilot() {
   activeScreen = 'copilot';
-  resetScrollRegion();
-  process.stdout.write(serializeVTerm(vterm));
   setScrollRegion();
+  process.stdout.write(serializeVTerm(vterm));
   drawStatusBar();
 }
 
+/**
+ * Recalculate sizes for all PTYs and virtual terminals, then redraw the active screen.
+ * Used on both resize events and Ctrl-G toggle to ensure consistent rendering.
+ * @returns {void}
+ */
+function recalculateAndRedraw() {
+  const cols = getCols();
+  const rows = getRows() - 1;
+  if (ptyProcess) ptyProcess.resize(cols, rows);
+  if (vterm) vterm.resize(cols, rows);
+  if (gameProcess) gameProcess.resize(cols, rows);
+  if (gameVterm) gameVterm.resize(cols, rows);
+  if (activeScreen === 'copilot') { setScrollRegion(); process.stdout.write(serializeVTerm(vterm)); drawStatusBar(); }
+  else if (activeScreen === 'fun') drawFunScreen();
+  else if (activeScreen === 'game') { setScrollRegion(); process.stdout.write(serializeVTerm(gameVterm)); drawStatusBar(); }
+}
+
+/**
+ * Toggle between copilot and game screens.
+ * Skips the menu: copilot <-> game directly.
+ * If no game is running, auto-launches the last played game or shows the menu.
+ * @returns {void}
+ */
 function toggle() {
-  if (activeScreen === 'copilot') switchToFun();
-  else if (activeScreen === 'fun') switchToCopilot();
-  else if (activeScreen === 'game') pauseGame();
+  if (activeScreen === 'copilot') {
+    if (gameProcess) {
+      activeScreen = 'game';
+      recalculateAndRedraw();
+    } else if (lastGameId) {
+      launchGame(lastGameId);
+    } else {
+      switchToFun();
+    }
+  } else if (activeScreen === 'fun') {
+    activeScreen = 'copilot';
+    recalculateAndRedraw();
+  } else if (activeScreen === 'game') {
+    activeScreen = 'copilot';
+    recalculateAndRedraw();
+  }
 }
 
 // ── Input handling ──────────────────────────────────────────────────────────
+/** @returns {void} */
 function setupInput() {
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
   process.stdin.resume();
   process.stdin.setEncoding(null);
 
-  process.stdin.on('data', (data) => {
+  process.stdin.on('data', (/** @type {Buffer | string} */ data) => {
     const bytes = Buffer.from(data);
     for (let i = 0; i < bytes.length; i++) {
       if (bytes[i] === 0x07) { toggle(); return; }
     }
     if (activeScreen === 'copilot' && ptyProcess) { ptyProcess.write(data.toString()); return; }
     if (activeScreen === 'game' && gameProcess) {
-      if (bytes.length === 1 && bytes[0] === 0x71) { destroyGame(); activeScreen = 'fun'; drawFunScreen(); return; }
+      if (bytes.length === 1 && (bytes[0] === 0x71 || bytes[0] === 0x1b)) { destroyGame(); activeScreen = 'fun'; drawFunScreen(); return; }
       gameProcess.write(data.toString());
       return;
     }
@@ -408,26 +548,17 @@ function setupInput() {
         if (ch === 0x73 || ch === 0x6a) { selectedGame = Math.min(GAMES.length - 1, selectedGame + 1); drawFunScreen(); return; }
         if (ch === 0x0d || ch === 0x0a) { if (gameProcess) resumeGame(); else launchGame(GAMES[selectedGame].id); return; }
         if (ch === 0x6e) { destroyGame(); launchGame(GAMES[selectedGame].id); return; }
-        if (ch === 0x71) { destroyGame(); switchToCopilot(); return; }
+        if (ch === 0x71 || ch === 0x1b) { destroyGame(); switchToCopilot(); return; }
       }
     }
   });
 }
 
 // ── Resize ──────────────────────────────────────────────────────────────────
-process.stdout.on('resize', () => {
-  const cols = getCols();
-  const rows = getRows() - 1;
-  if (ptyProcess) ptyProcess.resize(cols, rows);
-  if (vterm) vterm.resize(cols, rows);
-  if (gameProcess) gameProcess.resize(cols, rows);
-  if (gameVterm) gameVterm.resize(cols, rows);
-  if (activeScreen === 'copilot') { setScrollRegion(); drawStatusBar(); }
-  else if (activeScreen === 'fun') drawFunScreen();
-  else if (activeScreen === 'game') { setScrollRegion(); process.stdout.write(serializeVTerm(gameVterm)); drawStatusBar(); }
-});
+process.stdout.on('resize', recalculateAndRedraw);
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────
+/** @returns {void} */
 function cleanup() {
   resetScrollRegion();
   process.stdout.write(SHOW_CURSOR + RESET);
@@ -439,8 +570,16 @@ function cleanup() {
 }
 
 process.on('SIGINT', () => {
-  if (activeScreen === 'copilot' && ptyProcess) ptyProcess.write('\x03');
-  else if (activeScreen === 'game' && gameProcess) gameProcess.write('\x03');
+  const now = Date.now();
+  if (activeScreen === 'game') {
+    destroyGame(); activeScreen = 'fun'; drawFunScreen();
+  } else if (activeScreen === 'fun') {
+    switchToCopilot();
+  } else if (activeScreen === 'copilot' && ptyProcess) {
+    if (now - ctrlCTime < 1000) { cleanup(); process.exit(0); }
+    ptyProcess.write('\x03');
+  }
+  ctrlCTime = now;
 });
 process.on('exit', cleanup);
 process.on('SIGTERM', () => { cleanup(); process.exit(0); });
@@ -449,6 +588,36 @@ process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 installHooks();
 pollCopilotStatus();
 process.stdout.write(CLEAR);
-drawStatusBar();
-startCopilot();
+
+if (YOLO_FLAG) {
+  /** @type {string[]} */
+  const yoloWarning = [
+    `${BOLD}${YELLOW}\u26A0  YOLO MODE ENABLED  \u26A0${RESET}`,
+    '',
+    `${CYAN}You are granting Copilot CLI the following permissions:${RESET}`,
+    '',
+    `  ${BOLD}\u2022${RESET} Edit, create, and delete files ${DIM}(no confirmation)${RESET}`,
+    `  ${BOLD}\u2022${RESET} Run arbitrary shell commands ${DIM}(no confirmation)${RESET}`,
+    `  ${BOLD}\u2022${RESET} Install packages and dependencies ${DIM}(no confirmation)${RESET}`,
+    `  ${BOLD}\u2022${RESET} All tool use prompts auto-accepted ${DIM}(copilot --yolo)${RESET}`,
+    '',
+    `${YELLOW}${BOLD}\u26A0  Copilot will act autonomously without asking.${RESET}`,
+    '',
+    `${DIM}Starting in 3 seconds... (Ctrl-C to abort)${RESET}`,
+  ];
+  const cols = getCols();
+  const rows = getRows();
+  const startRow = Math.max(1, Math.floor(rows / 2) - Math.floor(yoloWarning.length / 2));
+  for (let i = 0; i < yoloWarning.length; i++) {
+    const line = yoloWarning[i];
+    const rawLen = line.replace(/\x1b\[[0-9;]*m/g, '').length;
+    const cx = Math.max(0, Math.floor((cols - rawLen) / 2));
+    process.stdout.write(`${CSI}${startRow + i};${cx + 1}H${line}`);
+  }
+  COPILOT_ARGS.push('--yolo');
+  setTimeout(() => { process.stdout.write(CLEAR); drawStatusBar(); startCopilot(); }, 3000);
+} else {
+  drawStatusBar();
+  startCopilot();
+}
 setupInput();

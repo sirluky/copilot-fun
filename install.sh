@@ -57,7 +57,7 @@ echo -e "${GREEN}✓ git detected${NC}"
 if ! command -v copilot > /dev/null 2>&1; then
     echo -e "${YELLOW}⚠ GitHub Copilot CLI not detected${NC}"
     echo -e "${YELLOW}  Install it from: https://github.com/github/copilot-cli${NC}"
-    echo -e "${YELLOW}  Installation will continue, but copilot-cli won't work without it${NC}"
+    echo -e "${YELLOW}  Installation will continue, but copilot-fun won't work without it${NC}"
 else
     echo -e "${GREEN}✓ GitHub Copilot CLI detected${NC}"
 fi
@@ -88,7 +88,7 @@ mkdir -p "$BIN_DIR"
 
 # Create symlink
 echo -e "${BLUE}Creating symlink...${NC}"
-ln -sf "$INSTALL_DIR/index.js" "$BIN_DIR/copilot-cli"
+ln -sf "$INSTALL_DIR/index.js" "$BIN_DIR/copilot-fun"
 
 # Check if BIN_DIR is in PATH
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
@@ -104,7 +104,7 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║   Installation Complete! 🎉              ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BLUE}Run with:${NC} ${GREEN}copilot-cli${NC}"
+echo -e "${BLUE}Run with:${NC} ${GREEN}copilot-fun${NC}"
 echo ""
 echo -e "${BLUE}Controls:${NC}"
 echo -e "  ${YELLOW}Ctrl-G${NC} - Toggle between Copilot and Games"
@@ -114,5 +114,5 @@ echo -e "  ${YELLOW}Q${NC} - Quit game or return to Copilot"
 echo ""
 echo -e "${BLUE}To uninstall:${NC}"
 echo -e "  rm -rf $INSTALL_DIR"
-echo -e "  rm $BIN_DIR/copilot-cli"
+echo -e "  rm $BIN_DIR/copilot-fun"
 echo ""

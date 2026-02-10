@@ -43,7 +43,7 @@ npx copilot-fun
 
 # Install globally
 npm install -g copilot-fun
-copilot-cli
+copilot-fun
 ```
 
 ## Updating the curl installer
@@ -53,7 +53,7 @@ The `install.sh` script uses the GitHub repository URL. No changes needed after 
 ## Package Information
 
 - **Package name**: `copilot-fun`
-- **Binary name**: `copilot-cli`
+- **Binary name**: `copilot-fun`
 - **License**: MIT
 - **Node version**: >=18.0.0
 
