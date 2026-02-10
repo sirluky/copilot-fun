@@ -12,13 +12,28 @@
   },
   "keywords": [
     "copilot",
+    "github-copilot",
     "tui",
     "cli",
     "fun",
-    "wrapper"
+    "wrapper",
+    "games",
+    "terminal",
+    "wasm"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sirluky/copilot-fun.git"
+  },
+  "homepage": "https://github.com/sirluky/copilot-fun#readme",
+  "bugs": {
+    "url": "https://github.com/sirluky/copilot-fun/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@xterm/headless": "^6.0.0",
     "node-pty": "^1.1.0"
