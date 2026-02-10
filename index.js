@@ -5,12 +5,13 @@
 const pty = require('node-pty');
 const { Terminal: VTerminal } = require('@xterm/headless');
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 
 /**
  * @typedef {'copilot' | 'fun' | 'game'} Screen
  * @typedef {'idle' | 'working' | 'waiting'} CopilotStatus
- * @typedef {{ id: string, name: string, desc: string, controls: string, goal: string, similar: string }} GameDef
+ * @typedef {{ id: string, name: string, desc: string, controls: string, goal: string, similar: string, type: 'wasm' | 'js' }} GameDef
  */
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -23,7 +24,9 @@ const COPILOT_ARGS = process.argv.slice(2).filter(a => a !== '--yolo');
 /** @type {string} */
 const WASM_DIR = path.join(__dirname, 'wasm');
 /** @type {string} */
-const STATUS_FILE = path.join(process.cwd(), '.copilot-fun-status');
+const GAMES_DIR = path.join(__dirname, 'games');
+/** @type {string} */
+const STATUS_FILE = path.join(os.tmpdir(), `copilot-fun-status-${process.pid}`);
 /** @type {string} */
 const HOOKS_DIR = path.join(process.cwd(), '.github', 'hooks');
 /** @type {string} */
@@ -36,66 +39,82 @@ const GAMES = [
     id: 'fifteen', name: 'Fifteen Puzzle', desc: 'Slide numbered tiles into order',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to slide tile',
     goal: 'Arrange all tiles in numerical order with the empty space last.',
-    similar: '15-Puzzle, Sliding Puzzle'
+    similar: '15-Puzzle, Sliding Puzzle', type: 'wasm'
   },
   {
     id: 'mines', name: 'Mines', desc: 'Classic minesweeper',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to reveal, Space to flag',
     goal: 'Reveal all safe cells without hitting a mine.',
-    similar: 'Minesweeper (Windows)'
+    similar: 'Minesweeper (Windows)', type: 'wasm'
   },
   {
     id: 'sudoku', name: 'Sudoku', desc: 'Number placement logic puzzle',
     controls: 'Arrow keys / WASD / HJKL to move, 1-9 to place, Space to clear',
     goal: 'Fill every row, column, and 3x3 box with digits 1-9.',
-    similar: 'Sudoku'
+    similar: 'Sudoku', type: 'wasm'
   },
   {
     id: 'reversi', name: 'Reversi', desc: 'Strategic disc-flipping board game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to place disc',
     goal: 'Have the most discs of your color when the board is full.',
-    similar: 'Othello'
+    similar: 'Othello', type: 'wasm'
   },
   {
     id: 'checkers', name: 'Checkers', desc: 'Classic diagonal capture game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to select/move piece',
     goal: "Capture all of your opponent's pieces or block them from moving.",
-    similar: 'Draughts'
+    similar: 'Draughts', type: 'wasm'
   },
   {
     id: 'sos', name: 'SOS', desc: 'Letter placement strategy game',
     controls: 'Arrow keys / WASD / HJKL to move, S or O to place letter',
     goal: 'Form as many S-O-S sequences as possible on the grid.',
-    similar: 'Tic-Tac-Toe (extended)'
+    similar: 'Tic-Tac-Toe (extended)', type: 'wasm'
   },
   {
     id: 'battleship', name: 'Battleship', desc: 'Naval combat guessing game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to fire',
     goal: "Sink all of your opponent's ships before they sink yours.",
-    similar: 'Battleship (board game)'
+    similar: 'Battleship (board game)', type: 'wasm'
   },
   {
     id: 'memoblocks', name: 'Memoblocks', desc: 'Memory matching card game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to flip card',
     goal: 'Match all pairs of cards with the fewest flips possible.',
-    similar: 'Concentration / Memory Game'
+    similar: 'Concentration / Memory Game', type: 'wasm'
   },
   {
     id: 'rabbithole', name: 'Rabbit Hole', desc: 'Maze navigation puzzle',
     controls: 'Arrow keys / WASD / HJKL to move',
     goal: 'Guide the rabbit through the maze to collect all carrots.',
-    similar: 'Maze Runner'
+    similar: 'Maze Runner', type: 'wasm'
   },
   {
     id: 'revenge', name: 'Revenge', desc: 'Block-pushing puzzle game',
     controls: 'Arrow keys / WASD / HJKL to move, Enter to push',
     goal: 'Push blocks strategically to reach the goal.',
-    similar: 'Sokoban'
+    similar: 'Sokoban', type: 'wasm'
   },
 ].filter(g => {
   try { fs.accessSync(path.join(WASM_DIR, `${g.id}.js`)); return true; }
   catch { return false; }
 });
+
+// ── Load JS games from games/ directory ─────────────────────────────────────
+try {
+  if (fs.existsSync(GAMES_DIR)) {
+    const jsGameFiles = fs.readdirSync(GAMES_DIR).filter(f => f.endsWith('.json'));
+    for (const file of jsGameFiles) {
+      try {
+        const def = JSON.parse(fs.readFileSync(path.join(GAMES_DIR, file), 'utf8'));
+        const scriptFile = path.join(GAMES_DIR, `${def.id}.js`);
+        if (fs.existsSync(scriptFile) && def.id && def.name) {
+          GAMES.push({ ...def, type: 'js' });
+        }
+      } catch (_) { }
+    }
+  }
+} catch (_) { }
 
 // ── ANSI helpers ────────────────────────────────────────────────────────────
 /** @type {string} */
@@ -128,6 +147,14 @@ const BG_CYAN = `${CSI}46m`;
 const BLACK = `${CSI}30m`;
 /** @type {string} */
 const WHITE = `${CSI}37m`;
+/** @type {string} */
+const BG_BRIGHT_YELLOW = `${CSI}103m`;
+
+// ── OSC progress state (terminal window progress indicator) ─────────────────
+/** @type {string} */
+const OSC_PROGRESS_BUSY = `\x1b]9;4;3\x07`;
+/** @type {string} */
+const OSC_PROGRESS_DONE = `\x1b]9;4;0\x07`;
 
 /** @type {RegExp} */
 const FOCUS_RE = /\x1b\[[IO]/g;
@@ -155,6 +182,8 @@ let gameVterm = null;
 let lastGameId = null;
 /** @type {number} */
 let ctrlCTime = 0;
+/** @type {boolean} */
+let autoSwitchMode = false;
 
 // ── Terminal size ───────────────────────────────────────────────────────────
 /** @returns {number} */
@@ -241,7 +270,7 @@ function serializeVTerm(term) {
   return out;
 }
 
-// ── Copilot hooks ───────────────────────────────────────────────────────────
+// ── Copilot hooks (installed in CWD/.github/hooks/ per Copilot CLI docs) ────
 /** @returns {void} */
 function installHooks() {
   try {
@@ -263,8 +292,8 @@ function installHooks() {
 function cleanupHooks() {
   try { fs.unlinkSync(STATUS_FILE); } catch (_) { }
   try { fs.unlinkSync(HOOKS_FILE); } catch (_) { }
+  // Only remove dirs if empty
   try { fs.rmdirSync(HOOKS_DIR); } catch (_) { }
-  try { fs.rmdirSync(path.join(process.cwd(), '.github')); } catch (_) { }
 }
 
 /** @returns {void} */
@@ -272,9 +301,31 @@ function pollCopilotStatus() {
   statusPollInterval = setInterval(() => {
     try {
       const s = /** @type {CopilotStatus} */ (fs.readFileSync(STATUS_FILE, 'utf8').trim());
-      if (s !== copilotStatus) { copilotStatus = s; scheduleStatusBarRedraw(); }
+      if (s !== copilotStatus) {
+        copilotStatus = s;
+        process.stdout.write(copilotStatus === 'working' ? OSC_PROGRESS_BUSY : OSC_PROGRESS_DONE);
+        if (autoSwitchMode) handleAutoSwitch();
+        scheduleStatusBarRedraw();
+      }
     } catch (_) { }
   }, 1000);
+}
+
+/**
+ * Auto-switch between copilot and game based on copilot status.
+ * When copilot is working → toggle to game/menu. When idle/waiting → toggle to copilot.
+ * Uses the same toggle() logic as Ctrl-G for consistency.
+ * @returns {void}
+ */
+function handleAutoSwitch() {
+  if (copilotStatus === 'working') {
+    if (activeScreen === 'copilot') toggle();
+  } else {
+    if (activeScreen === 'game' || activeScreen === 'fun') {
+      activeScreen = 'copilot';
+      recalculateAndRedraw();
+    }
+  }
 }
 
 // ── Status bar ──────────────────────────────────────────────────────────────
@@ -288,8 +339,8 @@ function resetScrollRegion() {
   process.stdout.write(`${CSI}r`);
 }
 
-/** @returns {void} */
-function drawStatusBar() {
+/** @returns {string} */
+function getStatusBarSequence() {
   const cols = getCols();
   const rows = getRows();
   /** @type {string} */
@@ -304,30 +355,36 @@ function drawStatusBar() {
   /** @type {string} */
   let help;
   if (activeScreen === 'copilot') {
-    label = ' COPILOT '; help = '  Ctrl-G: games';
+    label = ' COPILOT '; help = '  Ctrl-G: games  Ctrl-S: auto';
   } else if (activeScreen === 'fun') {
     label = ' FUN MODE ';
     help = gameProcess ? '  Enter: resume  n: new  \u2191\u2193/WS: select  q: copilot' : '  Enter: play  \u2191\u2193/WS: select  q/Ctrl-G: back';
   } else {
     label = ' PLAYING '; help = '  q/ESC: quit game  Ctrl-G: copilot';
   }
+  const autoTag = autoSwitchMode ? `  ${CSI}35m\u2B82 AUTO${RESET}${BG_BLUE}` : '';
   const status = `  [${icon}${BG_BLUE}]`;
-  const rawLen = label.length + help.length + copilotStatus.length + 10;
+  const rawLen = label.length + help.length + copilotStatus.length + 10 + (autoSwitchMode ? 7 : 0);
   const pad = Math.max(0, cols - rawLen);
-  process.stdout.write(
-    `${CSI}s${CSI}${rows};1H` +
+  // Reset any in-progress attributes to avoid corrupting game escape sequences
+  return `${RESET}${CSI}s${CSI}${rows};1H` +
     `${BG_BLUE}${WHITE}${BOLD}${label}${RESET}` +
     `${BG_BLUE}${DIM}${help}${RESET}` +
-    `${BG_BLUE}${status}${BG_BLUE}` +
+    `${BG_BLUE}${autoTag}${status}${BG_BLUE}` +
     `${BG_BLUE}${' '.repeat(pad)}${RESET}` +
-    `${CSI}u`
-  );
+    `${CSI}u`;
+}
+
+/** @returns {void} */
+function drawStatusBar() {
+  process.stdout.write(getStatusBarSequence());
 }
 
 /** @returns {void} */
 function scheduleStatusBarRedraw() {
   if (statusBarTimer) return;
-  statusBarTimer = setTimeout(() => { statusBarTimer = null; drawStatusBar(); }, 80);
+  drawStatusBar();
+  statusBarTimer = setTimeout(() => { statusBarTimer = null; }, 80);
 }
 
 // ── Fun screen (game menu) ─────────────────────────────────────────────────
@@ -366,7 +423,7 @@ function drawFunScreen() {
     if (idx >= GAMES.length) break;
     const g = GAMES[idx];
     const sel = idx === selectedGame;
-    const pfx = sel ? `${BG_CYAN}${BLACK}${BOLD} \u25B8 ` : '   ';
+    const pfx = sel ? `${BG_BRIGHT_YELLOW}${BLACK}${BOLD} \u25B8 ` : '   ';
     const nm = g.name.padEnd(16);
     const line = sel ? `${pfx}${nm} ${g.desc} ${RESET}` : `${pfx}${nm}${DIM}${g.desc}${RESET}`;
     process.stdout.write(`${CSI}${row + i};1H${center(line, 20 + g.desc.length)}`);
@@ -388,7 +445,9 @@ function drawFunScreen() {
 function launchGame(gameId) {
   activeScreen = 'game';
   lastGameId = gameId;
-  const gameFile = path.join(WASM_DIR, `${gameId}.js`);
+  const gameDef = GAMES.find(g => g.id === gameId);
+  const isJsGame = gameDef && gameDef.type === 'js';
+  const gameFile = isJsGame ? path.join(GAMES_DIR, `${gameId}.js`) : path.join(WASM_DIR, `${gameId}.js`);
   const cols = getCols();
   const rows = getRows() - 1;
   setScrollRegion();
@@ -400,7 +459,7 @@ function launchGame(gameId) {
   /** @type {string[]} */
   const supportsN = ['fifteen', 'mines', 'reversi', 'checkers', 'sos', 'revenge'];
   /** @type {string[]} */
-  const gameArgs = gameId === 'sudoku' ? [gameFile, '-f'] : supportsN.includes(gameId) ? [gameFile, '-n'] : [gameFile];
+  const gameArgs = isJsGame ? [gameFile] : gameId === 'sudoku' ? [gameFile, '-f'] : supportsN.includes(gameId) ? [gameFile, '-n'] : [gameFile];
   gameProcess = pty.spawn('node', gameArgs, {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: gameEnv,
@@ -408,8 +467,12 @@ function launchGame(gameId) {
   gameProcess.onData((/** @type {string} */ data) => {
     if (gameVterm) gameVterm.write(data);
     if (activeScreen === 'game') {
-      process.stdout.write(data);
-      drawStatusBar();
+      if (!statusBarTimer) {
+        process.stdout.write(data + getStatusBarSequence());
+        statusBarTimer = setTimeout(() => { statusBarTimer = null; }, 80);
+      } else {
+        process.stdout.write(data);
+      }
     }
   });
   gameProcess.onExit(() => {
@@ -431,8 +494,7 @@ function resumeGame() {
   if (!gameProcess) return false;
   activeScreen = 'game';
   setScrollRegion();
-  process.stdout.write(serializeVTerm(gameVterm));
-  drawStatusBar();
+  process.stdout.write(serializeVTerm(gameVterm) + getStatusBarSequence());
   return true;
 }
 
@@ -458,8 +520,14 @@ function startCopilot() {
     if (vterm) vterm.write(data);
     if (activeScreen === 'copilot') {
       const cleaned = data.replace(FOCUS_RE, '');
-      if (cleaned) process.stdout.write(cleaned);
-      scheduleStatusBarRedraw();
+      if (cleaned) {
+        if (!statusBarTimer) {
+          process.stdout.write(cleaned + getStatusBarSequence());
+          statusBarTimer = setTimeout(() => { statusBarTimer = null; }, 80);
+        } else {
+          process.stdout.write(cleaned);
+        }
+      }
     }
   });
   ptyProcess.onExit((/** @type {{ exitCode: number }} */ { exitCode }) => { cleanup(); process.exit(exitCode || 0); });
@@ -473,25 +541,32 @@ function switchToFun() { activeScreen = 'fun'; drawFunScreen(); }
 function switchToCopilot() {
   activeScreen = 'copilot';
   setScrollRegion();
-  process.stdout.write(serializeVTerm(vterm));
-  drawStatusBar();
+  process.stdout.write(serializeVTerm(vterm) + getStatusBarSequence());
 }
 
 /**
  * Recalculate sizes for all PTYs and virtual terminals, then redraw the active screen.
  * Used on both resize events and Ctrl-G toggle to ensure consistent rendering.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function recalculateAndRedraw() {
+async function recalculateAndRedraw() {
   const cols = getCols();
   const rows = getRows() - 1;
+  // Force a real resize by briefly changing size by 10 cols, then restoring.
+  // This forces child PTY processes (like copilot GUI) to actually redraw.
+  if (ptyProcess) ptyProcess.resize(Math.max(1, cols - 10), rows);
+  if (gameProcess) gameProcess.resize(Math.max(1, cols - 10), rows);
+
+  await new Promise(r => setTimeout(r, 50));
+
   if (ptyProcess) ptyProcess.resize(cols, rows);
   if (vterm) vterm.resize(cols, rows);
   if (gameProcess) gameProcess.resize(cols, rows);
   if (gameVterm) gameVterm.resize(cols, rows);
-  if (activeScreen === 'copilot') { setScrollRegion(); process.stdout.write(serializeVTerm(vterm)); drawStatusBar(); }
+
+  if (activeScreen === 'copilot') { setScrollRegion(); process.stdout.write(serializeVTerm(vterm) + getStatusBarSequence()); }
   else if (activeScreen === 'fun') drawFunScreen();
-  else if (activeScreen === 'game') { setScrollRegion(); process.stdout.write(serializeVTerm(gameVterm)); drawStatusBar(); }
+  else if (activeScreen === 'game') { setScrollRegion(); process.stdout.write(serializeVTerm(gameVterm) + getStatusBarSequence()); }
 }
 
 /**
@@ -530,6 +605,7 @@ function setupInput() {
     const bytes = Buffer.from(data);
     for (let i = 0; i < bytes.length; i++) {
       if (bytes[i] === 0x07) { toggle(); return; }
+      if (bytes[i] === 0x13) { autoSwitchMode = !autoSwitchMode; scheduleStatusBarRedraw(); return; }
     }
     if (activeScreen === 'copilot' && ptyProcess) { ptyProcess.write(data.toString()); return; }
     if (activeScreen === 'game' && gameProcess) {
@@ -561,7 +637,7 @@ process.stdout.on('resize', recalculateAndRedraw);
 /** @returns {void} */
 function cleanup() {
   resetScrollRegion();
-  process.stdout.write(SHOW_CURSOR + RESET);
+  process.stdout.write(SHOW_CURSOR + RESET + OSC_PROGRESS_DONE);
   if (process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch (_) { } }
   if (statusPollInterval) clearInterval(statusPollInterval);
   if (statusBarTimer) clearTimeout(statusBarTimer);
