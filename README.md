@@ -22,15 +22,13 @@ Press **Ctrl-G** to toggle between Copilot and a game menu with 10 WASM-compiled
 - **GitHub Copilot CLI** installed and authenticated (`copilot` command available)
 - A terminal emulator supporting ANSI escape codes
 
-### Option 1: npx (Quickest - No Installation)
+### Option 1: npx (Quickest)
 
 Run directly without installation:
 
 ```bash
 npx copilot-fun
 ```
-
-> **Note**: Requires the package to be available on npm. Use alternative installation methods if not yet published.
 
 Pass Copilot CLI arguments:
 

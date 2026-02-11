@@ -122,16 +122,17 @@ This means:
 
 ## Running It
 
+The quickest way to start is using `npx`:
+
 ```bash
-git clone <repo-url>
-cd copilot-fun
-npm install && npm link
+npx copilot-fun
+```
 
-# Launch!
-copilot-cli
+Or install globally:
 
-# Or with model selection
-copilot-cli --model claude-sonnet-4.5
+```bash
+npm install -g copilot-fun
+copilot-fun
 ```
 
 **Controls:**
@@ -240,7 +241,7 @@ The entire wrapper is ~450 lines, has two dependencies, and was built entirely u
 
 ---
 
-*Check out the [GitHub repository](https://github.com/user/copilot-fun) for the full source code and [GAMES.md](https://github.com/user/copilot-fun/blob/main/GAMES.md) for detailed game guides.*
+*Check out the [GitHub repository](https://github.com/sirluky/copilot-fun) for the full source code and [GAMES.md](https://github.com/sirluky/copilot-fun/blob/main/GAMES.md) for detailed game guides.*
 
 Weird thing about copilot hooks that you cannot found on the internet. I categorited states that make ui interactive and that ones that are not interactive:
 
@@ -280,7 +281,7 @@ But accually pretooluse and posttooluse are diferrent. To understand it i asked 
 [2026-02-11T18:04:18Z] postToolUse
 [2026-02-11T18:04:22Z] sessionEnd
 
-Accually pretoolUse when requires permission gets called immediately twice and immideately then postTooluse, but not the second one, we can track this and know when all tool use are resolved. So we had to work around it. Great is that as i am writing this post, i can copy this problem and copilot-cli (fun mode) fixes that for me :-D.
+Accually pretoolUse when requires permission gets called immediately twice and immideately then postTooluse, but not the second one, we can track this and know when all tool use are resolved. So we had to work around it. Great is that as i am writing this post, i can copy this problem and copilot-fun fixes that for me :-D.
 
 # Example of adding game
 Ideally clone copilot cli from github. Inside the project are github-instructions.md so it will automatically pick up what to do and you just direct it into game making.
