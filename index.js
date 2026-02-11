@@ -36,6 +36,8 @@ const HOOKS_DIR = path.join(process.cwd(), '.github', 'hooks');
 /** @type {string} */
 const HOOKS_FILE = path.join(HOOKS_DIR, 'copilot-fun.json');
 /** @type {string} */
+const HOOKS_DEBUG_FILE = path.join(COPILOT_FUN_HOME, 'hooks-debug.log');
+/** @type {string} */
 const COPILOT_PROMPTS_DIR = path.join(os.homedir(), '.copilot', 'prompts');
 
 // ── Available games (turn-based only) ───────────────────────────────────────
@@ -219,6 +221,14 @@ let lastGameId = null;
 let ctrlCTime = 0;
 /** @type {boolean} */
 let autoSwitchMode = false;
+/** @type {string} */
+let lastHookName = '';
+/** @type {number} */
+let lastHookTime = 0;
+/** @type {number} */
+let pendingToolOps = 0;
+/** @type {number} */
+let lastHookLogPosition = 0;
 
 // ── Terminal size ───────────────────────────────────────────────────────────
 /** @returns {number} */
@@ -331,14 +341,23 @@ function installPrompts() {
 function installHooks() {
   try {
     fs.mkdirSync(HOOKS_DIR, { recursive: true });
+    try { fs.writeFileSync(HOOKS_DEBUG_FILE, ''); } catch (_) { }
     const statusPath = STATUS_FILE.replace(/\\/g, '/');
+    const debugPath = HOOKS_DEBUG_FILE.replace(/\\/g, '/');
+    const logCmd = (hookName) => {
+      const bashCmd = `echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${hookName}" >> "${debugPath}"`;
+      const psCmd = `Add-Content -Path "${debugPath}" -Value "[$(Get-Date -u -f 'yyyy-MM-ddTHH:mm:ssZ')] ${hookName}"`;
+      return { type: 'command', bash: bashCmd, powershell: psCmd, timeoutSec: 5 };
+    };
     fs.writeFileSync(HOOKS_FILE, JSON.stringify({
       version: 1,
       hooks: {
-        userPromptSubmitted: [{ type: 'command', bash: `echo "working" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "working"`, timeoutSec: 5 }],
-        preToolUse: [{ type: 'command', bash: `echo "working" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "working"`, timeoutSec: 5 }],
-        postToolUse: [{ type: 'command', bash: `echo "waiting" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "waiting"`, timeoutSec: 5 }],
-        sessionEnd: [{ type: 'command', bash: `echo "idle" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "idle"`, timeoutSec: 5 }],
+        sessionStart: [logCmd('sessionStart')],
+        sessionEnd: [logCmd('sessionEnd'), { type: 'command', bash: `echo "idle" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "idle"`, timeoutSec: 5 }],
+        userPromptSubmitted: [logCmd('userPromptSubmitted'), { type: 'command', bash: `echo "working" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "working"`, timeoutSec: 5 }],
+        preToolUse: [logCmd('preToolUse')],
+        postToolUse: [logCmd('postToolUse')],
+        errorOccurred: [logCmd('errorOccurred')],
       },
     }, null, 2));
     fs.writeFileSync(STATUS_FILE, 'idle');
@@ -356,28 +375,86 @@ function cleanupHooks() {
 /** @returns {void} */
 function pollCopilotStatus() {
   statusPollInterval = setInterval(() => {
+    let changed = false;
     try {
-      const s = /** @type {CopilotStatus} */ (fs.readFileSync(STATUS_FILE, 'utf8').trim());
-      if (s !== copilotStatus) {
-        copilotStatus = s;
-        process.stdout.write(copilotStatus === 'working' ? OSC_PROGRESS_BUSY : OSC_PROGRESS_DONE);
-        if (autoSwitchMode) handleAutoSwitch();
-        scheduleStatusBarRedraw();
+      if (fs.existsSync(HOOKS_DEBUG_FILE)) {
+        const stats = fs.statSync(HOOKS_DEBUG_FILE);
+        if (stats.size > lastHookLogPosition) {
+          const fd = fs.openSync(HOOKS_DEBUG_FILE, 'r');
+          const length = stats.size - lastHookLogPosition;
+          const buffer = Buffer.alloc(length);
+          fs.readSync(fd, buffer, 0, length, lastHookLogPosition);
+          fs.closeSync(fd);
+
+          lastHookLogPosition = stats.size;
+          const newContent = buffer.toString('utf8');
+          const newLines = newContent.split('\n').filter(l => l.trim());
+
+          for (const line of newLines) {
+            const match = line.match(/\] (\w+)$/);
+            if (match) {
+              const hookName = match[1];
+              lastHookName = hookName;
+              if (hookName === 'preToolUse') {
+                pendingToolOps++;
+                changed = true;
+              } else if (hookName === 'postToolUse') {
+                pendingToolOps = Math.max(0, pendingToolOps - 1);
+                changed = true;
+              } else if (hookName === 'userPromptSubmitted') {
+                pendingToolOps = 0;
+                changed = true;
+              } else if (hookName === 'sessionEnd' || hookName === 'errorOccurred') {
+                pendingToolOps = 0;
+                changed = true;
+              }
+            }
+          }
+          lastHookTime = stats.mtime.getTime();
+        } else if (stats.size < lastHookLogPosition) {
+          lastHookLogPosition = stats.size;
+          pendingToolOps = 0;
+          changed = true;
+        }
       }
     } catch (_) { }
-  }, 1000);
+
+    try {
+      const s = /** @type {CopilotStatus} */ (fs.readFileSync(STATUS_FILE, 'utf8').trim());
+      let newStatus = s;
+
+      // If a session is active (working), check if we are waiting for tool confirmation
+      if (s === 'working' && pendingToolOps > 0) {
+        // preToolUse means Copilot is waiting for user to allow/deny tool
+        newStatus = 'waiting';
+      }
+
+      if (newStatus !== copilotStatus) {
+        copilotStatus = newStatus;
+        process.stdout.write(copilotStatus === 'working' ? OSC_PROGRESS_BUSY : OSC_PROGRESS_DONE);
+        changed = true;
+      }
+    } catch (_) { }
+
+    if (changed) {
+      if (autoSwitchMode) handleAutoSwitch();
+      scheduleStatusBarRedraw();
+    }
+  }, 200);
 }
 
 /**
  * Auto-switch between copilot and game based on copilot status.
- * When copilot is working → toggle to game/menu. When idle/waiting → toggle to copilot.
- * Uses the same toggle() logic as Ctrl-G for consistency.
+ * When copilot is working autonomously -> toggle to game.
+ * When copilot needs input (waiting) or is done (idle) -> toggle to copilot.
  * @returns {void}
  */
 function handleAutoSwitch() {
   if (copilotStatus === 'working') {
+    // AI is working autonomously - switch TO game/menu
     if (activeScreen === 'copilot') toggle();
   } else {
+    // AI needs input (waiting) or is idle - switch TO copilot
     if (activeScreen === 'game' || activeScreen === 'fun') {
       activeScreen = 'copilot';
       recalculateAndRedraw();
@@ -420,14 +497,16 @@ function getStatusBarSequence() {
     label = ' PLAYING '; help = '  q/ESC: quit game  Ctrl-G: copilot';
   }
   const autoTag = autoSwitchMode ? `  ${CSI}35m\u2B82 AUTO${RESET}${BG_BLUE}` : '';
+  const toolTag = pendingToolOps > 0 ? `  ${CSI}33m[x${pendingToolOps}]${RESET}${BG_BLUE}` : '';
+  const hookTag = lastHookName ? `  ${CSI}36m${lastHookName}${RESET}${BG_BLUE}` : '';
   const status = `  [${icon}${BG_BLUE}]`;
-  const rawLen = label.length + help.length + copilotStatus.length + 10 + (autoSwitchMode ? 7 : 0);
+  const rawLen = label.length + help.length + copilotStatus.length + 10 + (autoSwitchMode ? 7 : 0) + (toolTag ? 7 : 0) + (lastHookName ? lastHookName.length + 4 : 0);
   const pad = Math.max(0, cols - rawLen);
   // Reset any in-progress attributes to avoid corrupting game escape sequences
   return `${RESET}${CSI}s${CSI}${rows};1H` +
     `${BG_BLUE}${WHITE}${BOLD}${label}${RESET}` +
     `${BG_BLUE}${DIM}${help}${RESET}` +
-    `${BG_BLUE}${autoTag}${status}${BG_BLUE}` +
+    `${BG_BLUE}${autoTag}${toolTag}${hookTag}${status}${BG_BLUE}` +
     `${BG_BLUE}${' '.repeat(pad)}${RESET}` +
     `${CSI}u`;
 }
@@ -662,9 +741,21 @@ function setupInput() {
     const bytes = Buffer.from(data);
     for (let i = 0; i < bytes.length; i++) {
       if (bytes[i] === 0x07) { toggle(); return; }
-      if (bytes[i] === 0x13) { autoSwitchMode = !autoSwitchMode; scheduleStatusBarRedraw(); return; }
+      if (bytes[i] === 0x13) {
+        autoSwitchMode = !autoSwitchMode;
+        if (autoSwitchMode) handleAutoSwitch();
+        scheduleStatusBarRedraw();
+        return;
+      }
     }
-    if (activeScreen === 'copilot' && ptyProcess) { ptyProcess.write(data.toString()); return; }
+    if (activeScreen === 'copilot' && ptyProcess) {
+      ptyProcess.write(data.toString());
+      // On Enter, if auto-switch is on, trigger an immediate fast-poll or switch
+      if (autoSwitchMode && bytes.some(b => b === 0x0d || b === 0x0a)) {
+        setTimeout(handleAutoSwitch, 100); // Small delay to let the hook fire
+      }
+      return;
+    }
     if (activeScreen === 'game' && gameProcess) {
       if (bytes.length === 1 && (bytes[0] === 0x71 || bytes[0] === 0x1b)) { destroyGame(); activeScreen = 'fun'; drawFunScreen(); return; }
       gameProcess.write(data.toString());

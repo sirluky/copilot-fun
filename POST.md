@@ -241,3 +241,43 @@ The entire wrapper is ~450 lines, has two dependencies, and was built entirely u
 ---
 
 *Check out the [GitHub repository](https://github.com/user/copilot-fun) for the full source code and [GAMES.md](https://github.com/user/copilot-fun/blob/main/GAMES.md) for detailed game guides.*
+
+Weird thing about copilot hooks that you cannot found on the internet. I categorited states that make ui interactive and that ones that are not interactive:
+
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [...], - non interactive, starts working
+    "sessionEnd": [...], - interactive work ended
+    "userPromptSubmitted": [...], - non interactive, starts working
+    "preToolUse": [...], - needs allow tool
+    "postToolUse": [...], - tool call done
+    "errorOccurred": [...] - we dont need this
+  }
+}
+
+But accually pretooluse and posttooluse are diferrent. To understand it i asked copilot cli to add logging to copilot hooks and went through it.
+
+
+
+
+(base) lukas@DESKTOP-368V4I9:~/.copilot-fun$ tail hooks-debug.log  -f
+[2026-02-11T18:02:29Z] userPromptSubmitted
+[2026-02-11T18:02:29Z] sessionStart
+[2026-02-11T18:02:52Z] preToolUse
+[2026-02-11T18:02:52Z] preToolUse
+[2026-02-11T18:02:52Z] preToolUse
+[2026-02-11T18:02:52Z] postToolUse
+[2026-02-11T18:02:52Z] postToolUse
+[2026-02-11T18:03:02Z] postToolUse
+[2026-02-11T18:03:21Z] preToolUse
+[2026-02-11T18:03:21Z] postToolUse
+[2026-02-11T18:03:39Z] preToolUse
+[2026-02-11T18:03:42Z] postToolUse
+[2026-02-11T18:04:05Z] preToolUse
+[2026-02-11T18:04:05Z] postToolUse
+[2026-02-11T18:04:08Z] preToolUse
+[2026-02-11T18:04:18Z] postToolUse
+[2026-02-11T18:04:22Z] sessionEnd
+
+Accually pretoolUse when requires permission gets called immediately twice and immideately then postTooluse, but not the second one, we can track this and know when all tool use are resolved. So we had to work around it. Great is that as i am writing this post, i can copy this problem and copilot-cli (fun mode) fixes that for me :-D.
