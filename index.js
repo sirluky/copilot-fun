@@ -26,13 +26,17 @@ const WASM_DIR = path.join(__dirname, 'wasm');
 /** @type {string} */
 const GAMES_DIR = path.join(__dirname, 'games');
 /** @type {string} */
-const CUSTOM_GAMES_DIR = path.join(process.cwd(), '.copilot-fun');
+const COPILOT_FUN_HOME = path.join(os.homedir(), '.copilot-fun');
 /** @type {string} */
-const STATUS_FILE = path.join(os.tmpdir(), `copilot-fun-status-${process.pid}`);
+const CUSTOM_GAMES_DIR = path.join(COPILOT_FUN_HOME, 'games');
+/** @type {string} */
+const STATUS_FILE = path.join(COPILOT_FUN_HOME, 'status');
 /** @type {string} */
 const HOOKS_DIR = path.join(process.cwd(), '.github', 'hooks');
 /** @type {string} */
 const HOOKS_FILE = path.join(HOOKS_DIR, 'copilot-fun.json');
+/** @type {string} */
+const COPILOT_PROMPTS_DIR = path.join(os.homedir(), '.copilot', 'prompts');
 
 // ── Available games (turn-based only) ───────────────────────────────────────
 /** @type {GameDef[]} */
@@ -301,18 +305,40 @@ function serializeVTerm(term) {
   return out;
 }
 
+// ── Setup (home dirs, hooks, prompts) ────────────────────────────────────────
+
+/** @returns {void} */
+function setupHomeDirs() {
+  try {
+    fs.mkdirSync(COPILOT_FUN_HOME, { recursive: true });
+    fs.mkdirSync(CUSTOM_GAMES_DIR, { recursive: true });
+    fs.mkdirSync(COPILOT_PROMPTS_DIR, { recursive: true });
+  } catch (_) { }
+}
+
+/** @returns {void} */
+function installPrompts() {
+  const addGamePrompt = path.join(COPILOT_PROMPTS_DIR, 'copilot-fun-add-game.md');
+  const askGamePrompt = path.join(COPILOT_PROMPTS_DIR, 'copilot-fun-ask-about-game.md');
+  const addGameSrc = path.join(__dirname, '.github', 'agents', 'copilot-fun-add-game.md');
+  const askGameSrc = path.join(__dirname, '.github', 'agents', 'copilot-fun-ask-about-game.md');
+  try { if (fs.existsSync(addGameSrc)) fs.copyFileSync(addGameSrc, addGamePrompt); } catch (_) { }
+  try { if (fs.existsSync(askGameSrc)) fs.copyFileSync(askGameSrc, askGamePrompt); } catch (_) { }
+}
+
 // ── Copilot hooks (installed in CWD/.github/hooks/ per Copilot CLI docs) ────
 /** @returns {void} */
 function installHooks() {
   try {
     fs.mkdirSync(HOOKS_DIR, { recursive: true });
+    const statusPath = STATUS_FILE.replace(/\\/g, '/');
     fs.writeFileSync(HOOKS_FILE, JSON.stringify({
       version: 1,
       hooks: {
-        userPromptSubmitted: [{ type: 'command', bash: `echo "working" > "${STATUS_FILE}"`, timeoutSec: 5 }],
-        preToolUse: [{ type: 'command', bash: `echo "working" > "${STATUS_FILE}"`, timeoutSec: 5 }],
-        postToolUse: [{ type: 'command', bash: `echo "waiting" > "${STATUS_FILE}"`, timeoutSec: 5 }],
-        sessionEnd: [{ type: 'command', bash: `echo "idle" > "${STATUS_FILE}"`, timeoutSec: 5 }],
+        userPromptSubmitted: [{ type: 'command', bash: `echo "working" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "working"`, timeoutSec: 5 }],
+        preToolUse: [{ type: 'command', bash: `echo "working" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "working"`, timeoutSec: 5 }],
+        postToolUse: [{ type: 'command', bash: `echo "waiting" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "waiting"`, timeoutSec: 5 }],
+        sessionEnd: [{ type: 'command', bash: `echo "idle" > "${statusPath}"`, powershell: `Set-Content -Path "${statusPath}" -Value "idle"`, timeoutSec: 5 }],
       },
     }, null, 2));
     fs.writeFileSync(STATUS_FILE, 'idle');
@@ -321,7 +347,7 @@ function installHooks() {
 
 /** @returns {void} */
 function cleanupHooks() {
-  try { fs.unlinkSync(STATUS_FILE); } catch (_) { }
+  try { fs.writeFileSync(STATUS_FILE, 'idle'); } catch (_) { }
   try { fs.unlinkSync(HOOKS_FILE); } catch (_) { }
   // Only remove dirs if empty
   try { fs.rmdirSync(HOOKS_DIR); } catch (_) { }
@@ -692,6 +718,8 @@ process.on('exit', cleanup);
 process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 
 // ── Main ────────────────────────────────────────────────────────────────────
+setupHomeDirs();
+installPrompts();
 installHooks();
 pollCopilotStatus();
 process.stdout.write(CLEAR);
