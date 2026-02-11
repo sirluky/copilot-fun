@@ -6,6 +6,17 @@ This guide explains how to publish copilot-fun to npm.
 
 - npm account with publishing permissions
 - Logged in via `npm login`
+- **Authenticator App**: (Google Authenticator, Authy, etc.) for TOTP if 2FA is enabled.
+
+### Using an Access Token (Alternative)
+
+To bypass manual login or TOTP in CI, you can use a [Granular Access Token](https://www.npmjs.com/settings/tokens):
+1. Create a token with **Read and Write** permissions.
+2. Select **Bypass 2FA** if you want to publish without the `--otp` flag.
+3. Add it to `~/.npmrc`:
+   ```bash
+   echo "//registry.npmjs.org/:_authToken=YOUR_TOKEN" >> ~/.npmrc
+   ```
 
 ## Publishing Steps
 
@@ -24,8 +35,9 @@ This guide explains how to publish copilot-fun to npm.
    ```
 
 3. **Publish to npm**:
+   If you have 2FA enabled, you will need to provide a TOTP (Time-based One-Time Password) from your authenticator app (e.g., Google Authenticator, Authy):
    ```bash
-   npm publish
+   npm publish --otp=YOUR_CODE
    ```
 
 4. **Push the tag** created by `npm version`:
