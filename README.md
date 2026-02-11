@@ -44,25 +44,7 @@ Install globally for easier access:
 npm install -g copilot-fun
 copilot-fun
 ```
-
-### Option 3: curl (One-line installer)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sirluky/copilot-fun/main/install.sh | bash
-```
-
-The installer will:
-- Clone the repository to `~/.copilot-fun`
-- Install dependencies
-- Create a symlink in `~/.local/bin/copilot-fun`
-
-To uninstall:
-
-```bash
-rm -rf ~/.copilot-fun ~/.local/bin/copilot-fun
-```
-
-### Option 4: Manual Installation (For Development)
+### Option 3: Manual Installation (For Development)
 
 ```bash
 # Clone the repository
@@ -77,23 +59,12 @@ npm link
 copilot-fun
 ```
 
-### Option 5: Bun
-
-```bash
-# Install with Bun
-bun install
-bun link
-
-# Run
-copilot-fun
-```
-
 ## Usage
 
 Pass any Copilot CLI arguments through:
 
 ```bash
-copilot-fun --model claude-sonnet-4
+copilot-fun --model claude-sonnet-4.5
 ```
 
 ## Controls
