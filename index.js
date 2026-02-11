@@ -244,6 +244,8 @@ let lastHookTime = 0;
 let pendingToolOps = 0;
 /** @type {number} */
 let lastHookLogPosition = 0;
+/** @type {boolean} */
+let isShuttingDown = false;
 
 // ── Terminal size ───────────────────────────────────────────────────────────
 /** @returns {number} */
@@ -392,6 +394,7 @@ function cleanupHooks() {
 /** @returns {void} */
 function pollCopilotStatus() {
   statusPollInterval = setInterval(() => {
+    if (isShuttingDown) return;
     let changed = false;
     try {
       if (fs.existsSync(HOOKS_DEBUG_FILE)) {
@@ -530,11 +533,13 @@ function getStatusBarSequence() {
 
 /** @returns {void} */
 function drawStatusBar() {
+  if (isShuttingDown) return;
   process.stdout.write(getStatusBarSequence());
 }
 
 /** @returns {void} */
 function scheduleStatusBarRedraw() {
+  if (isShuttingDown) return;
   if (statusBarTimer) return;
   drawStatusBar();
   statusBarTimer = setTimeout(() => { statusBarTimer = null; }, 80);
@@ -619,6 +624,7 @@ function launchGame(gameId) {
     env: gameEnv,
   });
   gameProcess.onData((/** @type {string} */ data) => {
+    if (isShuttingDown) return;
     if (gameVterm) gameVterm.write(data);
     if (activeScreen === 'game') {
       if (!statusBarTimer) {
@@ -659,6 +665,26 @@ function destroyGame() {
 }
 
 // ── Copilot PTY ─────────────────────────────────────────────────────────────
+/**
+ * Quote a string for PowerShell -Command usage.
+ * @param {string} value
+ * @returns {string}
+ */
+function quotePowerShell(value) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+/**
+ * Build a PowerShell command string to invoke Copilot with args.
+ * @param {string} cmd
+ * @param {string[]} args
+ * @returns {string}
+ */
+function buildPowerShellCommand(cmd, args) {
+  const parts = [quotePowerShell(cmd)].concat(args.map(quotePowerShell));
+  return `& ${parts.join(' ')}`;
+}
+
 /** @returns {void} */
 function startCopilot() {
   const cols = getCols();
@@ -666,14 +692,17 @@ function startCopilot() {
   createVTerm();
   setScrollRegion();
   process.stdout.write(`${CSI}?1004l`);
-  // On Windows, npm/CLI tools install as .cmd wrappers which ConPTY can't run directly
-  const copilotFile = IS_WIN ? process.env.ComSpec || 'cmd.exe' : COPILOT_CMD;
-  const copilotArgs = IS_WIN ? ['/c', COPILOT_CMD, ...COPILOT_ARGS] : COPILOT_ARGS;
+  // On Windows, prefer PowerShell to avoid cmd.exe ConPTY issues.
+  const copilotFile = IS_WIN ? 'powershell.exe' : COPILOT_CMD;
+  const copilotArgs = IS_WIN
+    ? ['-NoLogo', '-NoProfile', '-Command', buildPowerShellCommand(COPILOT_CMD, COPILOT_ARGS)]
+    : COPILOT_ARGS;
   ptyProcess = pty.spawn(copilotFile, copilotArgs, {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: { ...process.env, TERM: 'xterm-256color' },
   });
   ptyProcess.onData((/** @type {string} */ data) => {
+    if (isShuttingDown) return;
     if (vterm) vterm.write(data);
     if (activeScreen === 'copilot') {
       const cleaned = data.replace(FOCUS_RE, '');
@@ -758,7 +787,8 @@ function setupInput() {
   process.stdin.resume();
   process.stdin.setEncoding(null);
 
-  process.stdin.on('data', (/** @type {Buffer | string} */ data) => {
+  const handleInput = (/** @type {Buffer | string} */ data) => {
+    if (isShuttingDown) return;
     const bytes = Buffer.from(data);
     for (let i = 0; i < bytes.length; i++) {
       if (bytes[i] === 0x07) { toggle(); return; }
@@ -796,8 +826,16 @@ function setupInput() {
         if (ch === 0x71 || ch === 0x1b) { destroyGame(); switchToCopilot(); return; }
       }
     }
-  });
+  };
+
+  process.stdin.on('data', handleInput);
+
+  // Expose handler for cleanup
+  setupInput._handler = handleInput;
 }
+
+/** @type {((data: Buffer | string) => void) | null} */
+setupInput._handler = null;
 
 // ── Resize ──────────────────────────────────────────────────────────────────
 process.stdout.on('resize', recalculateAndRedraw);
@@ -805,11 +843,21 @@ process.stdout.on('resize', recalculateAndRedraw);
 // ── Cleanup ─────────────────────────────────────────────────────────────────
 /** @returns {void} */
 function cleanup() {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   resetScrollRegion();
   process.stdout.write(SHOW_CURSOR + RESET + OSC_PROGRESS_DONE);
+  process.stdout.off('resize', recalculateAndRedraw);
+  if (setupInput._handler) process.stdin.off('data', setupInput._handler);
   if (process.stdin.isTTY) { try { process.stdin.setRawMode(false); } catch (_) { } }
+  try { process.stdin.pause(); } catch (_) { }
   if (statusPollInterval) clearInterval(statusPollInterval);
   if (statusBarTimer) clearTimeout(statusBarTimer);
+  if (ptyProcess) {
+    try { ptyProcess.removeAllListeners(); } catch (_) { }
+    try { ptyProcess.destroy(); } catch (_) { }
+    ptyProcess = null;
+  }
   destroyGame();
   cleanupHooks();
 }
