@@ -1,6 +1,6 @@
 {
   "name": "copilot-fun",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Copilot Fun Mode - A TUI wrapper around GitHub Copilot CLI with a toggleable game/fun screen",
   "main": "index.js",
   "bin": {

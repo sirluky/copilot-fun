@@ -8,6 +8,9 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
+/** @type {boolean} */
+const IS_WIN = process.platform === 'win32';
+
 /**
  * @typedef {'copilot' | 'fun' | 'game'} Screen
  * @typedef {'idle' | 'working' | 'waiting'} CopilotStatus
@@ -360,7 +363,7 @@ function installHooks() {
     const debugPath = HOOKS_DEBUG_FILE.replace(/\\/g, '/');
     const logCmd = (hookName) => {
       const bashCmd = `echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${hookName}" >> "${debugPath}"`;
-      const psCmd = `Add-Content -Path "${debugPath}" -Value "[$(Get-Date -u -f 'yyyy-MM-ddTHH:mm:ssZ')] ${hookName}"`;
+      const psCmd = `Add-Content -Path "${debugPath}" -Value "[$(([DateTime]::UtcNow).ToString('yyyy-MM-ddTHH:mm:ssZ'))] ${hookName}"`;
       return { type: 'command', bash: bashCmd, powershell: psCmd, timeoutSec: 5 };
     };
     fs.writeFileSync(HOOKS_FILE, JSON.stringify({
@@ -611,7 +614,7 @@ function launchGame(gameId) {
   const supportsN = ['fifteen', 'mines', 'reversi', 'checkers', 'sos', 'revenge'];
   /** @type {string[]} */
   const gameArgs = isJsGame ? [gameFile] : gameId === 'sudoku' ? [gameFile, '-f'] : supportsN.includes(gameId) ? [gameFile, '-n'] : [gameFile];
-  gameProcess = pty.spawn('node', gameArgs, {
+  gameProcess = pty.spawn(process.execPath, gameArgs, {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: gameEnv,
   });
@@ -663,7 +666,10 @@ function startCopilot() {
   createVTerm();
   setScrollRegion();
   process.stdout.write(`${CSI}?1004l`);
-  ptyProcess = pty.spawn(COPILOT_CMD, COPILOT_ARGS, {
+  // On Windows, npm/CLI tools install as .cmd wrappers which ConPTY can't run directly
+  const copilotFile = IS_WIN ? process.env.ComSpec || 'cmd.exe' : COPILOT_CMD;
+  const copilotArgs = IS_WIN ? ['/c', COPILOT_CMD, ...COPILOT_ARGS] : COPILOT_ARGS;
+  ptyProcess = pty.spawn(copilotFile, copilotArgs, {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: { ...process.env, TERM: 'xterm-256color' },
   });
@@ -821,7 +827,7 @@ process.on('SIGINT', () => {
   ctrlCTime = now;
 });
 process.on('exit', cleanup);
-process.on('SIGTERM', () => { cleanup(); process.exit(0); });
+if (!IS_WIN) process.on('SIGTERM', () => { cleanup(); process.exit(0); });
 
 // ── Main ────────────────────────────────────────────────────────────────────
 setupHomeDirs();
