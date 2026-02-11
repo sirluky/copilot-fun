@@ -281,3 +281,6 @@ But accually pretooluse and posttooluse are diferrent. To understand it i asked 
 [2026-02-11T18:04:22Z] sessionEnd
 
 Accually pretoolUse when requires permission gets called immediately twice and immideately then postTooluse, but not the second one, we can track this and know when all tool use are resolved. So we had to work around it. Great is that as i am writing this post, i can copy this problem and copilot-cli (fun mode) fixes that for me :-D.
+
+# Example of adding game
+Ideally clone copilot cli from github. Inside the project are github-instructions.md so it will automatically pick up what to do and you just direct it into game making.

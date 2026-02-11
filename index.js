@@ -330,10 +330,12 @@ function setupHomeDirs() {
 function installPrompts() {
   const addGamePrompt = path.join(COPILOT_PROMPTS_DIR, 'copilot-fun-add-game.md');
   const askGamePrompt = path.join(COPILOT_PROMPTS_DIR, 'copilot-fun-ask-about-game.md');
-  const addGameSrc = path.join(__dirname, '.github', 'agents', 'copilot-fun-add-game.md');
-  const askGameSrc = path.join(__dirname, '.github', 'agents', 'copilot-fun-ask-about-game.md');
+  const readmePath = path.join(COPILOT_FUN_HOME, 'README.md');
+  const addGameSrc = path.join(__dirname, '.github', 'prompts', 'copilot-fun-add-game.md');
+  const askGameSrc = path.join(__dirname, '.github', 'prompts', 'game-expert.md');
   try { if (fs.existsSync(addGameSrc)) fs.copyFileSync(addGameSrc, addGamePrompt); } catch (_) { }
   try { if (fs.existsSync(askGameSrc)) fs.copyFileSync(askGameSrc, askGamePrompt); } catch (_) { }
+  try { if (fs.existsSync(addGameSrc)) fs.copyFileSync(addGameSrc, readmePath); } catch (_) { }
 }
 
 // ── Copilot hooks (installed in CWD/.github/hooks/ per Copilot CLI docs) ────
