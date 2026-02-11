@@ -11,7 +11,7 @@ const fs = require('fs');
 /**
  * @typedef {'copilot' | 'fun' | 'game'} Screen
  * @typedef {'idle' | 'working' | 'waiting'} CopilotStatus
- * @typedef {{ id: string, name: string, desc: string, controls: string, goal: string, similar: string, type: 'wasm' | 'js' }} GameDef
+ * @typedef {{ id: string, name: string, desc: string, controls: string, goal: string, similar: string, type: 'wasm' | 'js', path?: string }} GameDef
  */
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -25,6 +25,8 @@ const COPILOT_ARGS = process.argv.slice(2).filter(a => a !== '--yolo');
 const WASM_DIR = path.join(__dirname, 'wasm');
 /** @type {string} */
 const GAMES_DIR = path.join(__dirname, 'games');
+/** @type {string} */
+const CUSTOM_GAMES_DIR = path.join(process.cwd(), '.copilot-fun');
 /** @type {string} */
 const STATUS_FILE = path.join(os.tmpdir(), `copilot-fun-status-${process.pid}`);
 /** @type {string} */
@@ -110,6 +112,35 @@ try {
         const scriptFile = path.join(GAMES_DIR, `${def.id}.js`);
         if (fs.existsSync(scriptFile) && def.id && def.name) {
           GAMES.push({ ...def, type: 'js' });
+        }
+      } catch (_) { }
+    }
+  }
+} catch (_) { }
+
+// ── Load custom JS games from .copilot-fun/ directory ───────────────────────
+try {
+  if (fs.existsSync(CUSTOM_GAMES_DIR)) {
+    const customFiles = fs.readdirSync(CUSTOM_GAMES_DIR).filter(f => f.endsWith('.js'));
+    for (const file of customFiles) {
+      try {
+        const filePath = path.join(CUSTOM_GAMES_DIR, file);
+        const src = fs.readFileSync(filePath, 'utf8');
+        const meta = {};
+        const metaRe = /^\/\/\s*@game\.(\w+)\s+(.+)$/gm;
+        let m;
+        while ((m = metaRe.exec(src)) !== null) meta[m[1]] = m[2].trim();
+        if (meta.id && meta.name) {
+          GAMES.push({
+            id: meta.id,
+            name: meta.name,
+            desc: meta.desc || '',
+            controls: meta.controls || 'Arrow keys / WASD to move',
+            goal: meta.goal || '',
+            similar: meta.similar || '',
+            type: 'js',
+            path: filePath,
+          });
         }
       } catch (_) { }
     }
@@ -447,7 +478,7 @@ function launchGame(gameId) {
   lastGameId = gameId;
   const gameDef = GAMES.find(g => g.id === gameId);
   const isJsGame = gameDef && gameDef.type === 'js';
-  const gameFile = isJsGame ? path.join(GAMES_DIR, `${gameId}.js`) : path.join(WASM_DIR, `${gameId}.js`);
+  const gameFile = gameDef && gameDef.path ? gameDef.path : isJsGame ? path.join(GAMES_DIR, `${gameId}.js`) : path.join(WASM_DIR, `${gameId}.js`);
   const cols = getCols();
   const rows = getRows() - 1;
   setScrollRegion();
