@@ -52,9 +52,10 @@ Again, it's a wrapper — a wrapper around Copilot CLI + [Copilot Hooks](https:/
 
 ### Could We Integrate Straight Into the TUI?
 
-No. There are no hooks for that and currently it's not open-source (I don't know if Microsoft would happily upvote this project by being slightly toxic 😅).
+No. There are no hooks for that and currently, so instead I decided to make a "wrapper" around it. I thought how hard could be ember terminal inside terminal app. Ehh I was wrong, you have to do multiplexer stuffs I know nothing about. But newly released Opus 4.6 knew what to do with it. It perfect like tmux, I also had to do some quircks that forces rerendering of copilot gui during switching from gaming mode, but it seems to be atleast somewhat "ok".
 
-So I asked Copilot to explore the [Copilot CLI documentation](https://docs.github.com/en/copilot/how-tos/copilot-cli/). And we found something — we can use GitHub CLI hooks to track what the AI is doing:
+How we will handle in which state copilot is in, and does it need inpput?
+So I asked Copilot to explore the [Copilot CLI documentation](https://docs.github.com/en/copilot/how-tos/copilot-cli/). And we found something — we can use GitHub CLI hooks to track what the AI is doing: and let copilot implmeent it
 
 ```json
 {
@@ -81,7 +82,7 @@ I use **@xterm/headless** (the same xterm.js that powers VS Code's terminal, but
 ┌─────────────────────────────────────────┐
 │  Your Terminal                          │
 │  ┌───────────────────────────────────┐  │
-│  │  index.js (wrapper)               │  │
+│  │  copilot-fun (wrapper)            │  │
 │  │                                   │  │
 │  │  ┌─────────────┐  ┌───────────┐   │  │
 │  │  │ Copilot PTY │  │ Game PTY  │   │  │
@@ -130,7 +131,7 @@ npm install && npm link
 copilot-cli
 
 # Or with model selection
-copilot-cli --model claude-sonnet-4
+copilot-cli --model claude-sonnet-4.5
 ```
 
 **Controls:**
