@@ -14,7 +14,7 @@ For that I decided to create a wrapper around GitHub Copilot CLI, called **Copil
 
 And how did I build it? **Completely coded using Copilot CLI** with a combination of GPT-5.2 and Opus 4.6 models.
 
-<!-- HERE VIDEO / ASCIINEMA SNIPPET -->
+![Copilot Fun Mode](copilot-fun.gif)
 
 ## And What Game We Gonna Play?
 

@@ -33,7 +33,7 @@ The file **must** start with metadata header comments. These are parsed by copil
 ```javascript
 // @game.id my-game
 // @game.name My Game
-// @game.desc A short description shown in the menu
+// @game.desc A short description shown in the menu (max 40 chars)
 // @game.controls Arrow keys to move, Enter to act
 // @game.goal What the player needs to achieve
 // @game.similar Similar well-known game
@@ -43,6 +43,11 @@ The file **must** start with metadata header comments. These are parsed by copil
 
 **Required fields:** `id`, `name`
 **Optional fields:** `desc`, `controls`, `goal`, `similar`
+
+**Field length limits:**
+- `desc`: Maximum 36 characters (displayed in menu list)
+- `name`: Maximum 16 characters (displayed in menu list)
+- `controls` and `goal`: No strict limit (displayed in details section)
 
 The `id` must be unique and match the filename (without `.js`). For example, `pong.js` should have `// @game.id pong`.
 

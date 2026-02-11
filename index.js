@@ -124,9 +124,18 @@ try {
   }
 } catch (_) { }
 
-// ── Load custom JS games from .copilot-fun/ directory ───────────────────────
-try {
-  if (fs.existsSync(CUSTOM_GAMES_DIR)) {
+/**
+ * Load custom games from .copilot-fun/games directory.
+ * Scans for .js files with @game.* header metadata.
+ * @returns {void}
+ */
+function loadCustomGames() {
+  try {
+    if (!fs.existsSync(CUSTOM_GAMES_DIR)) return;
+    // Remove previously loaded custom games
+    for (let i = GAMES.length - 1; i >= 0; i--) {
+      if (GAMES[i].path) GAMES.splice(i, 1);
+    }
     const customFiles = fs.readdirSync(CUSTOM_GAMES_DIR).filter(f => f.endsWith('.js'));
     for (const file of customFiles) {
       try {
@@ -150,8 +159,11 @@ try {
         }
       } catch (_) { }
     }
-  }
-} catch (_) { }
+  } catch (_) { }
+}
+
+// Initial load
+loadCustomGames();
 
 // ── ANSI helpers ────────────────────────────────────────────────────────────
 /** @type {string} */
@@ -528,6 +540,7 @@ function scheduleStatusBarRedraw() {
 // ── Fun screen (game menu) ─────────────────────────────────────────────────
 /** @returns {void} */
 function drawFunScreen() {
+  loadCustomGames(); // Refresh game list to pick up newly added games
   const cols = getCols();
   const rows = getRows();
   setScrollRegion();

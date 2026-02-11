@@ -4,7 +4,7 @@ A TUI wrapper around [GitHub Copilot CLI](https://github.com/github/copilot-cli)
 
 Press **Ctrl-G** to toggle between Copilot and a game menu with 10 WASM-compiled games. Switch back anytime — both your Copilot session and game progress are preserved.
 
-<!-- TODO: Add screenshot/asciinema here -->
+![Copilot Fun Mode](copilot-fun.gif)
 
 ## Features
 
