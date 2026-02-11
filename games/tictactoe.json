@@ -1,0 +1,8 @@
+{
+  "id": "tictactoe",
+  "name": "Tic-Tac-Toe",
+  "desc": "Classic 3x3 game with computer opponent",
+  "controls": "Arrow keys/WASD to move, Enter to place, R to restart, M to toggle mode",
+  "goal": "Get 3 in a row before your opponent",
+  "similar": "Tic-Tac-Toe"
+}

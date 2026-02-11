@@ -207,6 +207,55 @@ Push blocks around a grid to solve spatial puzzles.
 
 ---
 
+## 2048
+
+**Similar to:** 2048 (Gabriele Cirulli)
+
+Slide tiles on a 4x4 grid to combine them and reach the 2048 tile.
+
+| Control | Action |
+|---------|--------|
+| Arrow keys / WASD | Slide tiles in the chosen direction |
+| R | Restart game |
+
+**Goal:** Combine tiles with the same number to create larger numbers. The game is won when a tile with the value 2048 is created.
+
+---
+
+## Cookie Clicker
+
+**Similar to:** Cookie Clicker
+
+Bake cookies by clicking, then spend them on upgrades and buildings to bake even more.
+
+| Control | Action |
+|---------|--------|
+| Space / Enter | Click the cookie to bake |
+| Arrow keys | Navigate through upgrades and buildings |
+| B | Buy the selected item |
+| R | Reset game |
+
+**Goal:** Bake as many cookies as possible and unlock all achievements and upgrades.
+
+---
+
+## Tic-Tac-Toe
+
+**Similar to:** Tic-Tac-Toe
+
+Classic game where two players take turns marking spaces in a 3x3 grid.
+
+| Control | Action |
+|---------|--------|
+| Arrow keys / WASD | Move cursor |
+| Enter | Place your mark (X or O) |
+| R | Restart game |
+| M | Toggle AI opponent mode |
+
+**Goal:** Get three of your marks in a horizontal, vertical, or diagonal row.
+
+---
+
 ## Technical Notes
 
 ### How WASM Games Work

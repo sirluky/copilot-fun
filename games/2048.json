@@ -1,0 +1,8 @@
+{
+  "id": "2048",
+  "name": "2048",
+  "desc": "Slide tiles to create 2048",
+  "controls": "Arrow keys/WASD to move, R to restart",
+  "goal": "Combine tiles to reach 2048",
+  "similar": "2048 (Gabriele Cirulli)"
+}
