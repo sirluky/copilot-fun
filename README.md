@@ -25,6 +25,7 @@ Press **Ctrl-G** to toggle between Copilot and a game menu with 13 games. Switch
   ```bash
   npm install -g @github/copilot-cli
   ```
+- **Platform note:** Works best on Linux or WSL. macOS should work but is untested. Windows has limited support (no auto-switch, manual closing required). See [Compatibility & Known Issues](#compatibility--known-issues) for details.
 
 ### Option 1: npx (Quickest)
 
@@ -272,6 +273,27 @@ The wrapper creates a `~/.copilot-fun/` directory for runtime data:
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `COPILOT_BIN` | `copilot` | Path to Copilot CLI binary |
+
+## Compatibility & Known Issues
+
+### Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| **Linux** | ✅ Fully supported | Best experience, auto-switch works perfectly |
+| **WSL (Windows Subsystem for Linux)** | ✅ Fully supported | Works as well as native Linux |
+| **macOS** | ⚠️ Not tested | Should work, but untested — feedback welcome |
+| **Windows (native)** | ⚠️ Limited | Works but with caveats (see below) |
+
+### Windows-Specific Issues
+
+- **No auto-switch mode** — Copilot Hooks don't work natively on Windows, so status tracking (and Ctrl-S auto-switching) is unavailable
+- **Manual screen switching only** — Use **Ctrl-G** to toggle between Copilot and games
+- **Window closing issues** — The terminal may hang on exit; you may need to kill the window manually
+
+### Workaround for Windows
+
+Use **WSL 2** (Windows Subsystem for Linux) — provides full Linux compatibility and fixes all the above issues.
 
 ## Built With
 
