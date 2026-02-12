@@ -21,8 +21,10 @@ Press **Ctrl-G** to toggle between Copilot and a game menu with 13 games. Switch
 ### Prerequisites
 
 - **Node.js** 18+ (tested with v23.4.0)
-- **GitHub Copilot CLI** installed and authenticated (`copilot` command available)
-- A terminal emulator supporting ANSI escape codes
+- **GitHub Copilot CLI** installed:
+  ```bash
+  npm install -g @github/copilot-cli
+  ```
 
 ### Option 1: npx (Quickest)
 

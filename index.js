@@ -363,6 +363,10 @@ function installHooks() {
     try { fs.writeFileSync(HOOKS_DEBUG_FILE, ''); } catch (_) { }
     const statusPath = STATUS_FILE.replace(/\\/g, '/');
     const debugPath = HOOKS_DEBUG_FILE.replace(/\\/g, '/');
+    /**
+     * @param {string} hookName
+     * @returns {{ type: string, bash: string, powershell: string, timeoutSec: number }}
+     */
     const logCmd = (hookName) => {
       const bashCmd = `echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] ${hookName}" >> "${debugPath}"`;
       const psCmd = `Add-Content -Path "${debugPath}" -Value "[$(([DateTime]::UtcNow).ToString('yyyy-MM-ddTHH:mm:ssZ'))] ${hookName}"`;
@@ -623,7 +627,11 @@ function launchGame(gameId) {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: gameEnv,
   });
-  gameProcess.onData((/** @type {string} */ data) => {
+  /**
+   * @param {string} data
+   * @returns {void}
+   */
+  gameProcess.onData((data) => {
     if (isShuttingDown) return;
     if (gameVterm) gameVterm.write(data);
     if (activeScreen === 'game') {
@@ -635,6 +643,9 @@ function launchGame(gameId) {
       }
     }
   });
+  /**
+   * @returns {void}
+   */
   gameProcess.onExit(() => {
     gameProcess = null;
     gameVterm = null;
@@ -701,7 +712,11 @@ function startCopilot() {
     name: 'xterm-256color', cols, rows, cwd: process.cwd(),
     env: { ...process.env, TERM: 'xterm-256color' },
   });
-  ptyProcess.onData((/** @type {string} */ data) => {
+  /**
+   * @param {string} data
+   * @returns {void}
+   */
+  ptyProcess.onData((data) => {
     if (isShuttingDown) return;
     if (vterm) vterm.write(data);
     if (activeScreen === 'copilot') {
@@ -716,7 +731,11 @@ function startCopilot() {
       }
     }
   });
-  ptyProcess.onExit((/** @type {{ exitCode: number }} */ { exitCode }) => { cleanup(); process.exit(exitCode || 0); });
+  /**
+   * @param {{ exitCode: number }} exitData
+   * @returns {void}
+   */
+  ptyProcess.onExit(({ exitCode }) => { cleanup(); process.exit(exitCode || 0); });
 }
 
 // ── Screen switching ────────────────────────────────────────────────────────
@@ -787,7 +806,11 @@ function setupInput() {
   process.stdin.resume();
   process.stdin.setEncoding(null);
 
-  const handleInput = (/** @type {Buffer | string} */ data) => {
+  /**
+   * @param {Buffer | string} data
+   * @returns {void}
+   */
+  const handleInput = (data) => {
     if (isShuttingDown) return;
     const bytes = Buffer.from(data);
     for (let i = 0; i < bytes.length; i++) {
@@ -834,7 +857,9 @@ function setupInput() {
   setupInput._handler = handleInput;
 }
 
-/** @type {((data: Buffer | string) => void) | null} */
+/**
+ * @type {((data: Buffer | string) => void) | null}
+ */
 setupInput._handler = null;
 
 // ── Resize ──────────────────────────────────────────────────────────────────

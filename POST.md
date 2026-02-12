@@ -1,14 +1,8 @@
----
-title: "Copilot Fun Mode — Play Games While Your AI Codes 🎮"
-description: "I built a TUI wrapper around GitHub Copilot CLI that lets you play WASM-compiled terminal games while waiting for your AI. Built entirely with Copilot CLI."
-tags: copilot, cli, tui, nodejs
----
-
 *This is a submission for the [GitHub Copilot CLI Challenge](https://dev.to/challenges/github-2026-01-21)*
 
 ## What I Built
 
-Using TUI tools is great, but we often tend to switch back to the browser when we finish our prompt. Most of the time it's awesome to watch your virtual brain thinking and doing stuff — managing multiple agent sessions, approving tool calls. But sometimes, you just want to **VibeCode**.
+Using TUI tools is great, but we often tend to switch back to the browser when we finish our prompt. Most of the time it's awesome to watch your virtual brain thinking and doing stuff, managing multiple agent sessions, approving tool calls. But sometimes, you just want to **VibeCode**.
 
 I decided to create a wrapper around GitHub Copilot CLI, called **Copilot Fun Mode**. It's a cross-platform TUI multiplexer that hosts a Copilot session in one "window" and a suite of terminal games in another. 
 
@@ -40,7 +34,7 @@ I decided to create a wrapper around GitHub Copilot CLI, called **Copilot Fun Mo
 
 ## Demo
 
-![Copilot Fun Mode](copilot-fun.gif)
+{% youtube PLnK48eh6oQ%}
 
 *   **GitHub Repository**: [sirluky/copilot-fun](https://github.com/sirluky/copilot-fun)
 *   **Detailed Game Guides**: [GAMES.md](https://github.com/sirluky/copilot-fun/blob/main/GAMES.md)
@@ -97,5 +91,6 @@ I discovered that `preToolUse` and `postToolUse` have specific patterns when per
 ## Conclusion
 
 Building **Copilot Fun Mode** showed me how powerful Copilot CLI is for exploring "uncharted territory" — like bridging 90s ncurses games with modern WebAssembly and Node.js PTYs. It transformed my "code-switch-wait" loop into a "code-play-vibe" loop. 
+If you like this project, please consider visiting the [GitHub repository](https://github.com/sirluky/copilot-fun) and giving it a ⭐!
 
-**Built with ❤️ using Copilot CLI.**
+**Built with ❤️ using Copilot CLI**
