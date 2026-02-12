@@ -275,3 +275,93 @@ The WASM games run on any platform with Node.js 18+:
 - ✅ macOS
 - ✅ Windows (via Windows Terminal, PowerShell, or WSL)
 - ✅ Any terminal emulator supporting ANSI escape codes
+
+---
+
+# Adding Custom Games
+
+You can add your own terminal games to `copilot-fun` by creating single-file Node.js scripts in `~/.copilot-fun/games/`.
+
+## 1. Create the Directory
+
+```bash
+mkdir -p ~/.copilot-fun/games
+```
+
+## 2. Create your Game Script
+
+Create a `.js` file (e.g., `pong.js`). It **must** start with metadata header comments for `copilot-fun` to recognize it:
+
+```javascript
+// @game.id pong
+// @game.name Pong
+// @game.desc Classic paddle ball game
+// @game.controls W/S to move paddle
+// @game.goal Score more points than the opponent
+// @game.similar Pong (Atari)
+
+// Game code follows...
+```
+
+### Required Metadata
+- `@game.id`: Unique identifier (must match the filename without `.js`).
+- `@game.name`: Display name in the menu (max 16 chars).
+
+### Optional Metadata
+- `@game.desc`: Short description shown in the menu (max 36 chars).
+- `@game.controls`: Explained in the game details section.
+- `@game.goal`: What the player needs to achieve.
+
+## 3. Game Architecture
+
+Your game runs as a standalone Node.js process spawned by `copilot-fun`.
+
+### Environment Variables
+- `process.env.LINES`: Terminal height (excluding the status bar).
+- `process.env.COLS`: Terminal width.
+
+### Requirements
+- **Single File**: No local imports or external `npm` dependencies.
+- **Raw Mode**: Use `process.stdin.setRawMode(true)` for keyboard input.
+- **ANSI Output**: Use ANSI escape codes written to `process.stdout`.
+- **Exit Cleanly**: The game should exit with `process.exit(0)` when finished.
+- **No `q` or `ESC` Handling**: These keys are intercepted by the `copilot-fun` wrapper to quit or pause the game.
+
+## Minimal Template
+
+```javascript
+#!/usr/bin/env node
+// @game.id skeleton
+// @game.name Skeleton Game
+// @game.desc A minimal game template
+
+const ROWS = parseInt(process.env.LINES) || 23;
+const COLS = parseInt(process.env.COLS) || 80;
+const CSI = '\x1b[';
+
+let playerX = Math.floor(COLS / 2);
+let playerY = Math.floor(ROWS / 2);
+
+function render() {
+  process.stdout.write(`${CSI}2J${CSI}H${CSI}?25l`); // Clear screen & hide cursor
+  process.stdout.write(`${CSI}${playerY};${playerX}H${CSI}32m@${CSI}0m`);
+  process.stdout.write(`${CSI}${ROWS};1H${CSI}2mArrow keys: move | Any other key: quit${CSI}0m`);
+}
+
+process.stdin.setRawMode(true);
+process.stdin.resume();
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (key) => {
+  if (key === '\x1b[A') playerY = Math.max(1, playerY - 1);
+  else if (key === '\x1b[B') playerY = Math.min(ROWS, playerY + 1);
+  else if (key === '\x1b[C') playerX = Math.min(COLS, playerX + 1);
+  else if (key === '\x1b[D') playerX = Math.max(1, playerX - 1);
+  else process.exit(0);
+  render();
+});
+
+// Show cursor on exit
+process.on('exit', () => process.stdout.write('\x1b[?25h'));
+
+render();
+```

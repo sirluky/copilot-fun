@@ -35,7 +35,7 @@ npx copilot-fun
 Pass Copilot CLI arguments:
 
 ```bash
-npx copilot-fun --model claude-sonnet-4
+npx copilot-fun --model claude-sonnet-4.5
 ```
 
 ### Option 2: npm Global Install (Recommended)
@@ -59,14 +59,6 @@ npm link
 
 # Run
 copilot-fun
-```
-
-## Usage
-
-Pass any Copilot CLI arguments through:
-
-```bash
-copilot-fun --model claude-sonnet-4.5
 ```
 
 ## Controls
@@ -122,20 +114,35 @@ All games are turn-based — perfect for playing while waiting for Copilot respo
 
 ### Custom Games
 
-You can add your own games as single-file Node.js scripts. Create a `~/.copilot-fun/games/` directory and add `.js` files with metadata headers:
+You can add your own games as single-file Node.js scripts. Create a `~/.copilot-fun/games/` directory and add `.js` files with metadata headers.
 
-```javascript
-// @game.id my-game
-// @game.name My Game
-// @game.desc A short description
-// @game.controls Arrow keys to move
-// @game.goal Win the game
-// @game.similar Similar Game
+Custom games will automatically appear in the game menu.
 
-// Your game code here...
-```
+#### Creating a Custom Game
 
-Custom games will automatically appear in the game menu. See the [Custom Games Guide](.github/prompts/copilot-fun-add-game.md) for complete documentation and templates.
+1. **Create the games directory**:
+   ```bash
+   mkdir -p ~/.copilot-fun/games
+   ```
+
+2. **Add a game file** (e.g., `~/.copilot-fun/games/my-game.js`) with metadata:
+   ```javascript
+   // @game.id my-game
+   // @game.name My Game
+   // @game.desc A short description
+   // @game.controls Arrow keys to move
+   // @game.goal Win the game
+
+   // Your game code here...
+   ```
+
+3. **Requirements**:
+   - Must be a single `.js` file (Node.js).
+   - Use `process.env.LINES` and `process.env.COLS` for terminal size.
+   - Use raw ANSI escape codes for rendering.
+   - Do **not** handle `q` or `ESC` (the wrapper intercepts these).
+
+See the [Custom Games section in GAMES.md](GAMES.md#adding-custom-games) for a full template and detailed guide.
 
 ## How It Works
 
