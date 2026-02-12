@@ -2,16 +2,18 @@
 
 A TUI wrapper around [GitHub Copilot CLI](https://github.com/github/copilot-cli) that lets you play terminal games while your AI codes.
 
-Press **Ctrl-G** to toggle between Copilot and a game menu with 10 WASM-compiled games. Switch back anytime — both your Copilot session and game progress are preserved.
+Press **Ctrl-G** to toggle between Copilot and a game menu with 13 games. Switch back anytime — both your Copilot session and game progress are preserved. Enable **Ctrl-S** auto-switch mode to automatically toggle screens based on AI activity.
 
 ![Copilot Fun Mode](copilot-fun.gif)
 
 ## Features
 
 - **Seamless screen switching** — toggle between Copilot and games with `Ctrl-G`, like a terminal multiplexer
+- **Auto-switch mode** — press `Ctrl-S` to automatically switch to games when AI is working, back to Copilot when it needs input
 - **Game state preservation** — pause mid-game, check Copilot, resume exactly where you left off
 - **Copilot status tracking** — status bar shows whether AI is working, waiting for input, or idle (via [Copilot Hooks](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-hooks))
-- **10 turn-based WASM games** — compiled from [nbsdgames](https://github.com/abakh/nbsdgames) using Emscripten, runs on any platform with Node.js
+- **13 turn-based games** — 10 WASM games compiled from [nbsdgames](https://github.com/abakh/nbsdgames), plus 3 built-in JS games (2048, Cookie Clicker, Tic-Tac-Toe)
+- **Custom games support** — add your own games as single-file Node.js scripts in `~/.copilot-fun/games/`
 - **Cross-platform** — no tmux, no native binaries, just Node.js
 
 ## Installation
@@ -74,6 +76,7 @@ copilot-fun --model claude-sonnet-4.5
 | Key | Action |
 |-----|--------|
 | Ctrl-G | Toggle between Copilot and Game Menu |
+| Ctrl-S | Toggle auto-switch mode (auto-switch between Copilot and games based on AI activity) |
 
 ### Game Menu
 
@@ -99,6 +102,8 @@ See [GAMES.md](GAMES.md) for per-game controls and rules.
 
 All games are turn-based — perfect for playing while waiting for Copilot responses.
 
+### Built-in Games
+
 | Game | Description | Similar to |
 |------|-------------|------------|
 | Fifteen Puzzle | Slide tiles into order | 15-Puzzle |
@@ -111,6 +116,26 @@ All games are turn-based — perfect for playing while waiting for Copilot respo
 | Memoblocks | Memory matching cards | Concentration |
 | Rabbit Hole | Maze navigation | Maze Runner |
 | Revenge | Block-pushing puzzles | Sokoban |
+| 2048 | Slide tiles to create 2048 | 2048 (Gabriele Cirulli) |
+| Cookie Clicker | Click cookies, buy upgrades | Cookie Clicker |
+| Tic-Tac-Toe | Classic 3x3 game | Tic-Tac-Toe |
+
+### Custom Games
+
+You can add your own games as single-file Node.js scripts. Create a `~/.copilot-fun/games/` directory and add `.js` files with metadata headers:
+
+```javascript
+// @game.id my-game
+// @game.name My Game
+// @game.desc A short description
+// @game.controls Arrow keys to move
+// @game.goal Win the game
+// @game.similar Similar Game
+
+// Your game code here...
+```
+
+Custom games will automatically appear in the game menu. See the [Custom Games Guide](.github/prompts/copilot-fun-add-game.md) for complete documentation and templates.
 
 ## How It Works
 
@@ -133,8 +158,10 @@ All games are turn-based — perfect for playing while waiting for Copilot respo
 1. **Copilot CLI** runs inside a pseudo-terminal (`node-pty`)
 2. **@xterm/headless** virtual terminals track screen state for both Copilot and games (like tmux does internally)
 3. **Ctrl-G** switches which screen is rendered — the inactive process keeps running and its VTerminal keeps recording output
-4. **Copilot Hooks** write status to a file, polled every second by the wrapper to update the status bar
-5. **WASM games** run in their own PTY via Node.js — compiled from C with a custom ncurses shim
+4. **Ctrl-S** enables auto-switch mode — automatically switches to games when AI is working autonomously, back to Copilot when it needs input
+5. **Copilot Hooks** write status to a file, polled every second by the wrapper to update the status bar and drive auto-switch
+6. **WASM games** run in their own PTY via Node.js — compiled from C with a custom ncurses shim
+7. **JS games** run as Node.js child processes with raw terminal I/O
 
 ## Compiling WASM Games
 
@@ -191,7 +218,7 @@ emcc -O2 -I wasm -I nbsdgames \
 
 ```
 copilot-fun/
-├── index.js           # Main TUI wrapper (~450 lines)
+├── index.js           # Main TUI wrapper (~918 lines)
 ├── package.json       # node-pty + @xterm/headless deps
 ├── Dockerfile         # Docker-based WASM compilation
 ├── build-wasm.sh      # Build script for all games
@@ -201,10 +228,34 @@ copilot-fun/
 │   ├── mines.js       # Compiled game (JS loader)
 │   ├── mines.wasm     # Compiled game (WASM binary)
 │   └── ...            # Other compiled games
+├── games/             # Built-in JS games
+│   ├── 2048.js        # 2048 game implementation
+│   ├── 2048.json      # 2048 game metadata
+│   ├── cookie-clicker.js
+│   ├── cookie-clicker.json
+│   ├── tictactoe.js
+│   ├── tictactoe.json
+│   └── README.md      # Guide for adding JS games
+├── .github/
+│   ├── hooks/         # Copilot CLI hooks
+│   │   └── copilot-fun.json  # Hook configuration
+│   └── prompts/       # Agent prompts
+│       └── copilot-fun-add-game.md  # Custom game creation guide
 ├── nbsdgames/         # Original C source (git submodule / clone)
 ├── GAMES.md           # Per-game controls and rules
 ├── LICENSE            # MIT + CC0 (for nbsdgames)
 └── POST.md            # dev.to blog post
+```
+
+### User Data Directory
+
+The wrapper creates a `~/.copilot-fun/` directory for runtime data:
+
+```
+~/.copilot-fun/
+├── games/             # Custom user games (single .js files)
+├── status             # Copilot status file (idle/working/waiting)
+└── hooks-debug.log    # Hook debugging output
 ```
 
 ## Configuration
