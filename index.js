@@ -35,7 +35,7 @@ const CUSTOM_GAMES_DIR = path.join(COPILOT_FUN_HOME, 'games');
 /** @type {string} */
 const STATUS_FILE = path.join(COPILOT_FUN_HOME, 'status');
 /** @type {string} */
-const HOOKS_DIR = path.join(process.cwd(), '.github', 'hooks');
+const HOOKS_DIR = path.join(os.homedir(), '.copilot', 'hooks');
 /** @type {string} */
 const HOOKS_FILE = path.join(HOOKS_DIR, 'copilot-fun.json');
 /** @type {string} */
@@ -355,7 +355,7 @@ function installPrompts() {
   try { if (fs.existsSync(addGameSrc)) fs.copyFileSync(addGameSrc, readmePath); } catch (_) { }
 }
 
-// ── Copilot hooks (installed in CWD/.github/hooks/ per Copilot CLI docs) ────
+// ── Copilot hooks (installed in ~/.copilot/hooks/ per Copilot CLI docs) ────
 /** @returns {void} */
 function installHooks() {
   try {
@@ -391,8 +391,6 @@ function installHooks() {
 function cleanupHooks() {
   try { fs.writeFileSync(STATUS_FILE, 'idle'); } catch (_) { }
   try { fs.unlinkSync(HOOKS_FILE); } catch (_) { }
-  // Only remove dirs if empty
-  try { fs.rmdirSync(HOOKS_DIR); } catch (_) { }
 }
 
 /** @returns {void} */

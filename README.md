@@ -247,8 +247,6 @@ copilot-fun/
 │   ├── tictactoe.json
 │   └── README.md      # Guide for adding JS games
 ├── .github/
-│   ├── hooks/         # Copilot CLI hooks
-│   │   └── copilot-fun.json  # Hook configuration
 │   └── prompts/       # Agent prompts
 │       └── copilot-fun-add-game.md  # Custom game creation guide
 ├── nbsdgames/         # Original C source (git submodule / clone)
@@ -267,6 +265,8 @@ The wrapper creates a `~/.copilot-fun/` directory for runtime data:
 ├── status             # Copilot status file (idle/working/waiting)
 └── hooks-debug.log    # Hook debugging output
 ```
+
+Hook configuration is installed to `~/.copilot/hooks/copilot-fun.json` and is automatically removed on exit.
 
 ## Configuration
 
